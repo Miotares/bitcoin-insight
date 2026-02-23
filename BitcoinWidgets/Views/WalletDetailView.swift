@@ -436,6 +436,7 @@ struct WalletDetailView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 10)
+                    .opacity(addr.balanceSats > 0 ? 1.0 : 0.45)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         UIPasteboard.general.string = addr.address

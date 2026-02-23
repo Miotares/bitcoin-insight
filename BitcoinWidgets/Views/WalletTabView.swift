@@ -124,14 +124,6 @@ struct WalletTabView: View {
                         }
                         .buttonStyle(.plain)
                         .padding(.horizontal)
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                Haptics.trigger(.medium)
-                                viewModel.removeWallet(wallet)
-                            } label: {
-                                Label("Delete Wallet", systemImage: "trash")
-                            }
-                        }
                     }
                 }
 

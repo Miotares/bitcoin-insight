@@ -36,8 +36,9 @@ struct HalvingDetailView: View {
     
     private var estimatedDateString: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "de_DE")
-        formatter.dateFormat = "dd.MM.yyyy"
+        formatter.locale = Locale.current
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
         return formatter.string(from: estimatedDate)
     }
     
@@ -213,69 +214,20 @@ struct HalvingDetailView: View {
         }
     }
     
-    // MARK: - Row & Explanation (shared look with Block view)
-    private func row(title: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(.body)
-                .foregroundStyle(.primary)
-            Spacer()
-            Text(value)
-                .font(.body.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(.primary)
-        }
-        .padding(.vertical, 14)
-    }
-    
-    private func explanationRow(key: String, text: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(key)
-                .font(.body.weight(.semibold))
-            Text("– \(text)")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-    
-    // MARK: - Formatting helpers (match Block view style)
-    private func formatInt(_ value: Int) -> String {
-        value.formatted(.number.grouping(.automatic))
-    }
-    
-    private func formatBTC(_ value: Double) -> String {
-        let nf = NumberFormatter()
-        nf.locale = Locale.current
-        nf.numberStyle = .decimal
-        nf.minimumFractionDigits = 0
-        nf.maximumFractionDigits = 8
-        let formatted = nf.string(from: NSNumber(value: value)) ?? String(format: "%.8f", value)
-        // Trim trailing zeros and decimal point
-        let trimmed = formatted.replacingOccurrences(of: "(\\.?0+)$", with: "", options: .regularExpression)
-        return "\(trimmed) BTC"
-    }
-    
     // MARK: - API
     func fetchBlockHeight() async {
         let urlString = "https://mempool.space/api/blocks/tip/height"
         guard let url = URL(string: urlString) else {
             return
         }
-        print("🚀 Starting API call: GET \(urlString)")
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            if let http = response as? HTTPURLResponse {
-                print("📦 Received data for /blocks/tip/height (\(data.count) bytes), status: \(http.statusCode)")
-            }
+            let (data, _) = try await URLSession.shared.data(from: url)
             if let heightString = String(data: data, encoding: .utf8),
                let height = Int(heightString.trimmingCharacters(in: .whitespacesAndNewlines)) {
                 await MainActor.run {
                     self.blockHeight = height
                 }
             }
-        } catch {
-            print("❌ Failed to load block height: \(error)")
-        }
+        } catch { }
     }
 }

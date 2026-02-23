@@ -82,6 +82,21 @@ struct DifficultyDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .padding(.horizontal)
                         
+                    } else if let error = errorMessage {
+                        VStack(spacing: 16) {
+                            Image(systemName: "wifi.exclamationmark")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            Text(error)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                            Button("Retry") { Task { await fetchDifficultyData() } }
+                                .foregroundStyle(Color.bitcoinOrange)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 100)
+                        .padding(.horizontal)
                     } else {
                         ProgressView()
                             .scaleEffect(1.5)
@@ -114,21 +129,14 @@ struct DifficultyDetailView: View {
             self.errorMessage = "Invalid URL"
             return
         }
-        print("🚀 Starting API call: GET \(urlString)")
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            if let http = response as? HTTPURLResponse {
-                print("📦 Received data for difficulty adjustment (\(data.count) bytes), status: \(http.statusCode)")
-            }
-            
+            let (data, _) = try await URLSession.shared.data(from: url)
             let decoded = try JSONDecoder().decode(CorrectDifficultyAdjustment.self, from: data)
-            
             await MainActor.run {
                 self.adjustmentData = decoded
                 self.errorMessage = nil
             }
         } catch {
-            print("❌ Failed to load difficulty data: \(error)")
             await MainActor.run { self.errorMessage = error.localizedDescription }
         }
     }

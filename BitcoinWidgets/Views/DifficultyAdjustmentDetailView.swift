@@ -139,9 +139,7 @@ var body: some View {
                     self.adjustments = parsed.sorted(by: { $0.timestamp > $1.timestamp })
                     self.isLoading = false
                 }
-            } catch {
-                print("Error fetching difficulty data: \(error)")
-            }
+            } catch { }
         }
         
         func formatDifficulty(_ difficulty: Double) -> String {

@@ -105,9 +105,7 @@ struct CirculatingSupplyDetailView: View {
                     self.calculateSupply(height: height)
                 }
             }
-        } catch {
-            print("❌ Error fetching block height: \(error)")
-        }
+        } catch { }
     }
     
     private func calculateSupply(height: Int) {

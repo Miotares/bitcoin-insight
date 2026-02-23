@@ -116,6 +116,21 @@ struct HashrateDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .padding(.horizontal)
                         
+                    } else if let error = errorMessage {
+                        VStack(spacing: 16) {
+                            Image(systemName: "wifi.exclamationmark")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            Text(error)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                            Button("Retry") { Task { await fetchHashrateData() } }
+                                .foregroundStyle(Color.bitcoinOrange)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 100)
+                        .padding(.horizontal)
                     } else {
                         ProgressView()
                             .scaleEffect(1.5)
@@ -141,22 +156,6 @@ struct HashrateDetailView: View {
         }
     }
 
-    // MARK: - Formatting helpers (match Block view style)
-    private func formatInt(_ value: Double) -> String {
-        Int(value).formatted(.number.grouping(.automatic))
-    }
-
-    private func formatHashrate(_ hashrate: Double) -> String {
-        let units = ["H/s", "KH/s", "MH/s", "GH/s", "TH/s", "PH/s", "EH/s", "ZH/s"]
-        var value = hashrate
-        var unitIndex = 0
-        while value >= 1000 && unitIndex < units.count - 1 {
-            value /= 1000
-            unitIndex += 1
-        }
-        return "\(value.formatted(.number.precision(.fractionLength(2)).grouping(.automatic))) \(units[unitIndex])"
-    }
-
     // MARK: - API
     func fetchHashrateData() async {
         let baseUrl = "https://mempool.space/api/v1/mining/hashrate/"
@@ -169,12 +168,8 @@ struct HashrateDetailView: View {
                 self.errorMessage = "Invalid URL"
                 return
             }
-            print("🚀 Starting API call: GET \(urlString)")
             do {
-                let (data, response) = try await URLSession.shared.data(from: url)
-                if let http = response as? HTTPURLResponse {
-                    print("📦 Received data for /mining/hashrate/\(period) (\(data.count) bytes), status: \(http.statusCode)")
-                }
+                let (data, _) = try await URLSession.shared.data(from: url)
                 let decoded = try JSONDecoder().decode(HashrateData.self, from: data)
                 let avgHashrate = decoded.hashrates.map { $0.avgHashrate }.reduce(0, +) / Double(decoded.hashrates.count)
                 periodAverages[period] = avgHashrate
@@ -184,7 +179,6 @@ struct HashrateDetailView: View {
                     }
                 }
             } catch {
-                print("❌ Failed to load hashrate data for \(period): \(error)")
                 await MainActor.run { self.errorMessage = error.localizedDescription }
                 return
             }

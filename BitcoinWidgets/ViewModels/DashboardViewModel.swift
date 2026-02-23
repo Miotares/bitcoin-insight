@@ -77,7 +77,6 @@ class DashboardViewModel: ObservableObject {
         do {
             try await fetchPriceFromMempool()
         } catch {
-            print("⚠️ Mempool.space failed – Fallback to CoinGecko")
             await fetchPriceFromCoinGecko()
         }
     }
@@ -153,9 +152,7 @@ class DashboardViewModel: ObservableObject {
                     await updatePriceUI(price, usdPrice: usdPrice)
                 }
             }
-        } catch {
-            print("❌ Error fetching price from CoinGecko: \(error)")
-        }
+        } catch { }
     }
     
     private func updatePriceUI(_ price: Double, usdPrice: Double? = nil) {

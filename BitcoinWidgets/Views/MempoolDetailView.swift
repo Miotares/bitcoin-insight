@@ -69,6 +69,21 @@ struct MempoolDetailView: View {
                         
 
                         
+                    } else if let error = errorMessage {
+                        VStack(spacing: 16) {
+                            Image(systemName: "wifi.exclamationmark")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            Text(error)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                            Button("Retry") { Task { await fetchMempoolData(); await fetchFees() } }
+                                .foregroundStyle(Color.bitcoinOrange)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 100)
+                        .padding(.horizontal)
                     } else {
                         ProgressView()
                             .scaleEffect(1.5)
@@ -96,54 +111,6 @@ struct MempoolDetailView: View {
         }
     }
 
-    // MARK: - Row & Explanation (shared look with Block view)
-    private func row(title: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(.body)
-                .foregroundStyle(.primary)
-            Spacer()
-            Text(value)
-                .font(.body.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(.primary)
-        }
-    }
-
-    private func explanationRow(key: String, text: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            if !key.isEmpty {
-                Text(key)
-                    .font(.body.weight(.semibold))
-            }
-            Text("– \(text)")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    // MARK: - Formatting helpers (match Block view style)
-    private func formatInt(_ value: Int) -> String {
-        value.formatted(.number.grouping(.automatic))
-    }
-
-    private func formatVMB(_ vsize: Int) -> String {
-        let vmb = Double(vsize) / 1_000_000.0
-        return vmb.formatted(.number.precision(.fractionLength(2)).grouping(.automatic))
-    }
-
-    private func formatBTC(_ sats: Int64) -> String {
-        let btc = Double(sats) / 100_000_000.0
-        let nf = NumberFormatter()
-        nf.locale = Locale.current
-        nf.numberStyle = .decimal
-        nf.minimumFractionDigits = 8
-        nf.maximumFractionDigits = 8
-        let s = nf.string(from: NSNumber(value: btc)) ?? String(format: "%.8f", btc)
-        return "\(s) BTC"
-    }
-
     // MARK: - API
     func fetchMempoolData() async {
         let urlString = "https://mempool.space/api/mempool"
@@ -151,19 +118,14 @@ struct MempoolDetailView: View {
             self.errorMessage = "Invalid URL"
             return
         }
-        print("🚀 Starting API call: GET \(urlString)")
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            if let http = response as? HTTPURLResponse {
-                print("📦 Received data for /mempool (\(data.count) bytes), status: \(http.statusCode)")
-            }
+            let (data, _) = try await URLSession.shared.data(from: url)
             let decoded = try JSONDecoder().decode(MempoolData.self, from: data)
             await MainActor.run {
                 self.mempoolData = decoded
                 self.errorMessage = nil
             }
         } catch {
-            print("❌ Failed to load mempool data: \(error)")
             await MainActor.run { self.errorMessage = error.localizedDescription }
         }
     }
@@ -185,8 +147,6 @@ struct MempoolDetailView: View {
             await MainActor.run {
                 self.minFee = fees.minimumFee
             }
-        } catch {
-            print("❌ Error fetching fees: \(error)")
-        }
+        } catch { }
     }
 }

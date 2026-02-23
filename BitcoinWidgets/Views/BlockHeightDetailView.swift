@@ -65,50 +65,8 @@ struct BlockData: Decodable {
 struct BlockHeightDetailView: View {
     @State private var blockData: BlockData?
     @State private var tipHeight: Int?
+    @State private var errorMessage: String?
 
-    private func formattedRelativeTime(for timestamp: TimeInterval) -> String {
-        let timeSinceMined = Date().timeIntervalSince(Date(timeIntervalSince1970: timestamp))
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter.localizedString(fromTimeInterval: -timeSinceMined)
-    }
-    
-    private func formatNumber(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.groupingSeparator = "."
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
-    }
-
-    private func formatDifficulty(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 2
-        formatter.groupingSeparator = "."
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
-    }
-    
-    private func formatBytesToMB(_ bytes: Int) -> String {
-        let mbValue = Double(bytes) / 1_000_000.0
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: mbValue)) ?? "\(mbValue)"
-    }
-
-    private func satsToBTC(_ sats: Int) -> Double {
-        return Double(sats) / 100_000_000.0
-    }
-
-    private func formatBTC(_ btc: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 8
-        formatter.groupingSeparator = "."
-        return (formatter.string(from: NSNumber(value: btc)) ?? "\(btc)") + " BTC"
-    }
-    
     func fetchTipHeight() {
         let url = URL(string: "https://mempool.space/api/blocks/tip/height")!
         URLSession.shared.dataTask(with: url) { data, _, _ in
@@ -129,53 +87,47 @@ struct BlockHeightDetailView: View {
         }
 
         let blocksURL = URL(string: "https://mempool.space/api/v1/blocks")!
-        print("🚀 Starting API call: GET \(blocksURL.absoluteString)")
-        
+
         URLSession.shared.dataTask(with: blocksURL) { data, response, error in
             if let error = error {
-                print("❌ Error fetching /blocks: \(error)")
+                DispatchQueue.main.async { self.errorMessage = error.localizedDescription }
                 return
             }
             guard let data = data else {
-                print("❌ No data received from /blocks endpoint.")
+                DispatchQueue.main.async { self.errorMessage = "No data received" }
                 return
             }
-            print("📦 Received data for /blocks (\(data.count) bytes)")
-            
+
             do {
                 let blocks = try JSONDecoder().decode([BlockSummary].self, from: data)
                 guard let latestBlock = blocks.first else {
-                    print("❌ No blocks found in /blocks response.")
                     return
                 }
-                print("✅ Fetched latest block summary: #\(latestBlock.height), id: \(latestBlock.id)")
-                
+
                 let blockDetailsURL = URL(string: "https://mempool.space/api/v1/block/\(latestBlock.id)")!
-                print("🔎 Fetching block details: GET \(blockDetailsURL.absoluteString)")
-                
+
                 URLSession.shared.dataTask(with: blockDetailsURL) { detailData, _, detailError in
                     if let detailError = detailError {
-                        print("❌ Error fetching block details: \(detailError)")
+                        DispatchQueue.main.async { self.errorMessage = detailError.localizedDescription }
                         return
                     }
                     guard let detailData = detailData else {
-                        print("❌ No data received from block details endpoint.")
+                        DispatchQueue.main.async { self.errorMessage = "No data received" }
                         return
                     }
-                    print("📦 Received block details data (\(detailData.count) bytes)")
-                    
+
                     do {
                         let detailedBlock = try JSONDecoder().decode(BlockData.self, from: detailData)
-                        print("✅ Decoded detailed block: #\(detailedBlock.height)")
                         DispatchQueue.main.async {
                             self.blockData = detailedBlock
+                            self.errorMessage = nil
                         }
                     } catch {
-                        print("❌ Failed to decode block details: \(error)")
+                        DispatchQueue.main.async { self.errorMessage = "Failed to parse response" }
                     }
                 }.resume()
             } catch {
-                print("❌ Failed to decode /blocks response: \(error)")
+                DispatchQueue.main.async { self.errorMessage = "Failed to parse response" }
             }
         }.resume()
     }
@@ -335,6 +287,21 @@ struct BlockHeightDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .padding(.horizontal)
                         
+                    } else if let error = errorMessage {
+                        VStack(spacing: 16) {
+                            Image(systemName: "wifi.exclamationmark")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            Text(error)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                            Button("Retry") { fetchLatestBlock() }
+                                .foregroundStyle(Color.bitcoinOrange)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 100)
+                        .padding(.horizontal)
                     } else {
                         ProgressView()
                             .scaleEffect(1.5)

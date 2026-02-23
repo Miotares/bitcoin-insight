@@ -11,6 +11,10 @@ struct SettingsView: View {
     @EnvironmentObject var settings: SettingsManager
     @Environment(\.openURL) private var openURL
 
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–"
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -113,7 +117,7 @@ struct SettingsView: View {
 
                         // MARK: - About
                         SettingsSection(title: "About") {
-                            SettingsRow(title: "Version", value: "2.0")
+                            SettingsRow(title: "Version", value: appVersion)
 
                             Divider().padding(.leading, 16)
 
