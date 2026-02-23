@@ -9,9 +9,13 @@ import SwiftUI
 
 @main
 struct BitcoinWidgetsApp: App {
+    @StateObject private var settings = SettingsManager.shared
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainTabView()
+                .environmentObject(settings)
+                .preferredColorScheme(.dark)
         }
     }
 }
