@@ -9,6 +9,9 @@ import SwiftUI
 @main
 struct InsightWidgetsBundle: WidgetBundle {
     var body: some Widget {
-        InsightWidgets()
+        InsightWidgets()        // price
+        NetworkWidget()         // block height + fees + halving %
+        HalvingWidget()         // halving countdown
+        BlockHeightWidget()     // block height
     }
 }

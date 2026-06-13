@@ -2,19 +2,20 @@
 //  InsightWidgets.swift
 //  InsightWidgets
 //
-//  Home- and Lock-screen widgets for Bitcoin Insight.
-//  Premium-gated; reads the backend cache, falls back to the last good
-//  snapshot from the App Group when the backend is unreachable.
+//  Widget bundle members + shared support (formatting, timeline provider).
+//  Views live in WidgetViews.swift.
 //
 
 import WidgetKit
 import SwiftUI
 
-// MARK: - Brand + formatting (widget-local)
+// MARK: - Brand
 
-private extension Color {
+extension Color {
     static let btcOrange = Color(red: 247 / 255, green: 147 / 255, blue: 26 / 255)
 }
+
+// MARK: - Formatting helpers
 
 enum WidgetFormat {
     static func price(_ value: Double, currency: String) -> String {
@@ -23,6 +24,11 @@ enum WidgetFormat {
         f.currencyCode = currency
         f.maximumFractionDigits = 0
         return f.string(from: NSNumber(value: value)) ?? "\(Int(value))"
+    }
+
+    /// "BTC/USD $150,000"
+    static func pair(_ value: Double, currency: String) -> String {
+        "BTC/\(currency.uppercased()) \(price(value, currency: currency))"
     }
 
     /// Compact price for tiny surfaces, e.g. 63873 → "63.9K".
@@ -41,14 +47,39 @@ enum WidgetFormat {
     }
 }
 
+// MARK: - Derived data (halving + fees)
+
+extension NetworkSnapshot {
+    static let halvingInterval = 210_000
+
+    var blocksIntoEra: Int { blockHeight % Self.halvingInterval }
+    var blocksUntilHalving: Int { Self.halvingInterval - blocksIntoEra }
+    var halvingProgress: Double { Double(blocksIntoEra) / Double(Self.halvingInterval) }
+
+    /// Rough ETA assuming 10 min/block.
+    var halvingETA: Date {
+        Date().addingTimeInterval(Double(blocksUntilHalving) * 10 * 60)
+    }
+
+    /// The fee tiers as mempool presents them (priority): low = 1h, high = next block.
+    var feeLow: Int { feeHour }
+    var feeMedium: Int { feeHalfHour }
+    var feeHigh: Int { feeFast }
+
+    /// "L 1 · M 3 · H 4"
+    var feeSummary: String {
+        "L \(feeLow) · M \(feeMedium) · H \(feeHigh)"
+    }
+}
+
 // MARK: - Timeline
 
 struct StatsEntry: TimelineEntry {
     let date: Date
-    let snapshot: NetworkSnapshot?   // nil → never cached yet
+    let snapshot: NetworkSnapshot?
     let currency: String
     let isPremium: Bool
-    let isStale: Bool                // showing cached data, fetch failed
+    let isStale: Bool
 }
 
 struct Provider: TimelineProvider {
@@ -71,7 +102,6 @@ struct Provider: TimelineProvider {
         Task {
             let currency = AppGroupStore.preferredCurrency
 
-            // Locked: no network, single entry, slow re-check.
             guard AppGroupStore.isPremium else {
                 let entry = StatsEntry(date: Date(), snapshot: nil, currency: currency,
                                        isPremium: false, isStale: false)
@@ -80,7 +110,7 @@ struct Provider: TimelineProvider {
             }
 
             var snapshot = AppGroupStore.loadCachedSnapshot()
-            var isStale = (snapshot != nil)   // assume stale until a fresh fetch succeeds
+            var isStale = (snapshot != nil)
             do {
                 let fresh = try await NetworkClient.fetchSnapshot()
                 AppGroupStore.saveCachedSnapshot(fresh)
@@ -92,183 +122,25 @@ struct Provider: TimelineProvider {
 
             let entry = StatsEntry(date: Date(), snapshot: snapshot, currency: currency,
                                    isPremium: true, isStale: isStale)
-            // Request a tight cadence so WidgetKit refreshes as often as its budget
-            // allows (it still throttles to ~15-60 min in practice). Sooner if we
-            // have nothing cached yet.
+            // Request a tight cadence; WidgetKit still throttles to ~15-60 min.
             let next = Date().addingTimeInterval(snapshot == nil ? 2 * 60 : 5 * 60)
             completion(Timeline(entries: [entry], policy: .after(next)))
         }
     }
 }
 
-// MARK: - Entry view (routes by family + state)
+// MARK: - Widgets
 
-struct InsightWidgetsEntryView: View {
-    @Environment(\.widgetFamily) private var family
-    var entry: StatsEntry
-
-    var body: some View {
-        if !entry.isPremium {
-            LockedView(family: family)
-        } else if let snap = entry.snapshot {
-            switch family {
-            case .accessoryInline:      InlineView(snap: snap, currency: entry.currency)
-            case .accessoryCircular:    CircularView(snap: snap)
-            case .accessoryRectangular: RectangularView(snap: snap, currency: entry.currency, stale: entry.isStale)
-            case .systemMedium:         MediumView(snap: snap, currency: entry.currency, stale: entry.isStale)
-            default:                    SmallView(snap: snap, currency: entry.currency, stale: entry.isStale)
-            }
-        } else {
-            // Premium but nothing cached and fetch failed.
-            ProgressView()
-        }
-    }
-}
-
-// MARK: - Home screen
-
-private struct SmallView: View {
-    let snap: NetworkSnapshot
-    let currency: String
-    let stale: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 4) {
-                Image(systemName: "bitcoinsign.circle.fill").foregroundStyle(Color.btcOrange)
-                Text("Bitcoin").font(.caption2).foregroundStyle(.secondary)
-                Spacer()
-                if stale { Image(systemName: "wifi.slash").font(.caption2).foregroundStyle(.secondary) }
-            }
-            Text(WidgetFormat.price(snap.price(for: currency), currency: currency))
-                .font(.system(.title2, design: .rounded).weight(.bold))
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-            Label(WidgetFormat.number(snap.blockHeight), systemImage: "cube.fill")
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            Label("\(snap.feeFast) sat/vB", systemImage: "banknote.fill")
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-        }
-    }
-}
-
-private struct MediumView: View {
-    let snap: NetworkSnapshot
-    let currency: String
-    let stale: Bool
-
-    var body: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
-                    Image(systemName: "bitcoinsign.circle.fill").foregroundStyle(Color.btcOrange)
-                    Text("Bitcoin").font(.caption).foregroundStyle(.secondary)
-                }
-                Text(WidgetFormat.price(snap.price(for: currency), currency: currency))
-                    .font(.system(.title, design: .rounded).weight(.bold))
-                    .minimumScaleFactor(0.6).lineLimit(1)
-                HStack(spacing: 4) {
-                    if stale { Image(systemName: "wifi.slash") }
-                    Text(snap.updatedAt, style: .relative)
-                }
-                .font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
-            }
-            Divider()
-            VStack(alignment: .leading, spacing: 10) {
-                metric(icon: "cube.fill", title: "Block", value: WidgetFormat.number(snap.blockHeight))
-                metric(icon: "banknote.fill", title: "Fee", value: "\(snap.feeFast) sat/vB")
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func metric(icon: String, title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Label(title, systemImage: icon).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.system(.subheadline, design: .rounded).weight(.semibold)).lineLimit(1)
-        }
-    }
-}
-
-// MARK: - Lock screen
-
-private struct InlineView: View {
-    let snap: NetworkSnapshot
-    let currency: String
-    var body: some View {
-        Label("\(WidgetFormat.price(snap.price(for: currency), currency: currency)) · \(snap.feeFast) sat/vB",
-              systemImage: "bitcoinsign")
-    }
-}
-
-private struct CircularView: View {
-    let snap: NetworkSnapshot
-    var body: some View {
-        VStack(spacing: 0) {
-            Image(systemName: "bitcoinsign").font(.caption2)
-            Text(WidgetFormat.priceCompact(snap.price(for: "USD")))
-                .font(.system(.caption, design: .rounded).weight(.bold))
-                .minimumScaleFactor(0.5).lineLimit(1)
-        }
-    }
-}
-
-private struct RectangularView: View {
-    let snap: NetworkSnapshot
-    let currency: String
-    let stale: Bool
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 4) {
-                Image(systemName: "bitcoinsign")
-                Text(WidgetFormat.price(snap.price(for: currency), currency: currency))
-                    .fontWeight(.bold)
-                if stale { Image(systemName: "wifi.slash").font(.caption2) }
-            }
-            Text("Block \(WidgetFormat.number(snap.blockHeight))")
-            Text("\(snap.feeFast) sat/vB")
-        }
-        .font(.caption)
-        .lineLimit(1)
-    }
-}
-
-// MARK: - Locked state
-
-private struct LockedView: View {
-    let family: WidgetFamily
-    var body: some View {
-        switch family {
-        case .accessoryInline:
-            Label("Premium", systemImage: "lock.fill")
-        case .accessoryCircular:
-            Image(systemName: "lock.fill")
-        case .accessoryRectangular:
-            Label("Unlock in app", systemImage: "lock.fill")
-        default:
-            VStack(spacing: 6) {
-                Image(systemName: "lock.fill").font(.title2).foregroundStyle(Color.btcOrange)
-                Text("Premium").font(.headline)
-                Text("Unlock in the app").font(.caption2).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-        }
-    }
-}
-
-// MARK: - Widget
-
+/// Price-focused widget (kept kind "InsightWidgets" so existing placements survive).
 struct InsightWidgets: Widget {
     let kind = "InsightWidgets"
-
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
-            InsightWidgetsEntryView(entry: entry)
+            PriceWidgetView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
-        .configurationDisplayName("Bitcoin Insight")
-        .description("Live price, block height and fees.")
+        .configurationDisplayName("Bitcoin Price")
+        .description("Live BTC price, with block height and fees.")
         .supportedFamilies([
             .systemSmall, .systemMedium,
             .accessoryInline, .accessoryCircular, .accessoryRectangular
@@ -276,8 +148,58 @@ struct InsightWidgets: Widget {
     }
 }
 
-#Preview(as: .systemSmall) {
+/// No-price network widget: block height, fees, halving %.
+struct NetworkWidget: Widget {
+    let kind = "InsightNetwork"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            NetworkWidgetView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Network")
+        .description("Block height, fees and halving progress.")
+        .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
+    }
+}
+
+/// Halving countdown.
+struct HalvingWidget: Widget {
+    let kind = "InsightHalving"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            HalvingWidgetView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Halving Countdown")
+        .description("Progress toward the next halving.")
+        .supportedFamilies([.systemSmall, .accessoryInline, .accessoryCircular, .accessoryRectangular])
+    }
+}
+
+/// Block height.
+struct BlockHeightWidget: Widget {
+    let kind = "InsightBlock"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            BlockWidgetView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Block Height")
+        .description("The current Bitcoin block height.")
+        .supportedFamilies([.systemSmall, .accessoryInline, .accessoryCircular, .accessoryRectangular])
+    }
+}
+
+// MARK: - Previews
+
+#Preview("Price", as: .systemSmall) {
     InsightWidgets()
+} timeline: {
+    StatsEntry(date: .now, snapshot: .preview, currency: "USD", isPremium: true, isStale: false)
+}
+
+#Preview("Network", as: .systemMedium) {
+    NetworkWidget()
 } timeline: {
     StatsEntry(date: .now, snapshot: .preview, currency: "USD", isPremium: true, isStale: false)
 }
