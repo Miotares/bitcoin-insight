@@ -3,13 +3,14 @@
 //  InsightWidgets
 //
 //  Entry views for each widget + shared building blocks.
+//  Home layouts are deliberately typographic — no decorative SF icons.
 //
 
 import WidgetKit
 import SwiftUI
 import UIKit
 
-// MARK: - Shared building blocks
+// MARK: - Derived
 
 extension NetworkSnapshot {
     /// Congestion label for the next-block fee.
@@ -22,11 +23,12 @@ extension NetworkSnapshot {
     }
 }
 
-/// The real Bitcoin logo PNG if present in the asset catalog, otherwise nothing
-/// (we never fall back to the SF "bitcoinsign" glyph). Add a transparent
-/// `BitcoinLogo` image set to InsightWidgets/Assets.xcassets to enable it.
+// MARK: - Shared building blocks
+
+/// The real Bitcoin logo PNG if present, otherwise nothing (never the SF glyph).
+/// Add a transparent `BitcoinLogo` image set to InsightWidgets/Assets.xcassets.
 struct BrandLogo: View {
-    var size: CGFloat = 20
+    var size: CGFloat = 18
     var body: some View {
         if UIImage(named: "BitcoinLogo") != nil {
             Image("BitcoinLogo").resizable().scaledToFit().frame(width: size, height: size)
@@ -36,26 +38,53 @@ struct BrandLogo: View {
     }
 }
 
+/// Small, tracked, uppercase caption used as the header on home widgets.
+private struct HomeLabel: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text.uppercased())
+            .font(.caption2).fontWeight(.semibold)
+            .tracking(0.6)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+    }
+}
+
+/// Stacked label → value (→ optional sub) block. The home widgets' only unit.
+private struct StatBlock: View {
+    let label: String
+    let value: String
+    var sub: String? = nil
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label.uppercased())
+                .font(.caption2).tracking(0.5).foregroundStyle(.secondary).lineLimit(1)
+            Text(value)
+                .font(.system(.callout, design: .rounded).weight(.semibold))
+                .minimumScaleFactor(0.6).lineLimit(1)
+            if let sub {
+                Text(sub).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
+            }
+        }
+    }
+}
+
+/// Big rounded value, the focal number on a home widget.
+private struct BigValue: View {
+    let text: String
+    var size: CGFloat = 30
+    var body: some View {
+        Text(text)
+            .font(.system(size: size, weight: .semibold, design: .rounded))
+            .minimumScaleFactor(0.4).lineLimit(1)
+    }
+}
+
 private struct StaleDot: View {
     let stale: Bool
     var body: some View {
         if stale { Image(systemName: "wifi.slash").font(.caption2).foregroundStyle(.secondary) }
-    }
-}
-
-/// Icon + value (+ optional caption) row used in the home widgets.
-private struct MetricRow: View {
-    let icon: String
-    let value: String
-    var caption: String? = nil
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon).font(.caption).foregroundStyle(.secondary).frame(width: 16)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(value).font(.system(.subheadline, design: .rounded).weight(.semibold)).lineLimit(1)
-                if let caption { Text(caption).font(.caption2).foregroundStyle(.tertiary).lineLimit(1) }
-            }
-        }
     }
 }
 
@@ -77,7 +106,7 @@ struct LockedView: View {
     }
 }
 
-/// Small helper to gate every widget on premium + data.
+/// Gates every widget on premium + data.
 private struct WidgetGate<Content: View>: View {
     let family: WidgetFamily
     let entry: StatsEntry
@@ -103,6 +132,8 @@ struct PriceWidgetView: View {
         WidgetGate(family: family, entry: entry) { snap in
             let price = snap.price(for: entry.currency)
             switch family {
+
+            // Lock screen (unchanged look)
             case .accessoryInline:
                 Text(WidgetFormat.pair(price, currency: entry.currency))
             case .accessoryCircular:
@@ -119,45 +150,29 @@ struct PriceWidgetView: View {
                     Text("Block \(WidgetFormat.number(snap.blockHeight))")
                 }
                 .font(.caption).lineLimit(1)
+
+            // Home (clean, minimal, no icons, no timer)
             case .systemMedium:
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            BrandLogo(size: 20)
-                            Text("BTC/\(entry.currency.uppercased())").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Text(WidgetFormat.price(price, currency: entry.currency))
-                            .font(.system(.title, design: .rounded).weight(.bold))
-                            .minimumScaleFactor(0.5).lineLimit(1)
-                        HStack(spacing: 4) {
-                            StaleDot(stale: entry.isStale)
-                            Text(snap.updatedAt, style: .relative)
-                        }
-                        .font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
+                HStack(alignment: .top, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 6) { BrandLogo(size: 18); HomeLabel("BTC/\(entry.currency.uppercased())") }
+                        Spacer(minLength: 8)
+                        BigValue(text: WidgetFormat.price(price, currency: entry.currency), size: 38)
+                        Spacer(minLength: 0)
                     }
-                    Divider()
-                    VStack(alignment: .leading, spacing: 10) {
-                        MetricRow(icon: "cube.fill", value: WidgetFormat.number(snap.blockHeight), caption: "block")
-                        MetricRow(icon: "banknote.fill", value: "\(snap.feeHigh) sat/vB", caption: snap.feeCongestion)
+                    Spacer(minLength: 12)
+                    VStack(alignment: .leading, spacing: 12) {
+                        StatBlock(label: "Fee", value: "\(snap.feeHigh) sat/vB", sub: snap.feeCongestion)
+                        StatBlock(label: "Block", value: WidgetFormat.number(snap.blockHeight))
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             default: // systemSmall
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        BrandLogo(size: 18)
-                        Text("BTC/\(entry.currency.uppercased())").font(.caption2).foregroundStyle(.secondary)
-                        Spacer()
-                        StaleDot(stale: entry.isStale)
-                    }
-                    Text(WidgetFormat.price(price, currency: entry.currency))
-                        .font(.system(.title2, design: .rounded).weight(.bold))
-                        .minimumScaleFactor(0.5).lineLimit(1)
-                    Spacer(minLength: 0)
-                    Label(WidgetFormat.number(snap.blockHeight), systemImage: "cube.fill")
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    Label("\(snap.feeHigh) sat/vB · \(snap.feeCongestion)", systemImage: "banknote.fill")
-                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 6) { BrandLogo(size: 16); HomeLabel("BTC/\(entry.currency.uppercased())") }
+                    Spacer(minLength: 6)
+                    BigValue(text: WidgetFormat.price(price, currency: entry.currency), size: 30)
+                    Spacer(minLength: 6)
+                    StatBlock(label: "Fee", value: "\(snap.feeHigh) sat/vB", sub: snap.feeCongestion)
                 }
             }
         }
@@ -174,6 +189,7 @@ struct NetworkWidgetView: View {
         WidgetGate(family: family, entry: entry) { snap in
             let pct = Int(snap.halvingProgress * 100)
             switch family {
+
             case .accessoryRectangular:
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Block \(WidgetFormat.number(snap.blockHeight))").fontWeight(.semibold)
@@ -181,30 +197,26 @@ struct NetworkWidgetView: View {
                     Text("Halving \(pct)%")
                 }
                 .font(.caption).lineLimit(1)
+
             case .systemMedium:
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 6) {
-                        BrandLogo(size: 18)
-                        Text("Network").font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 0) {
+                    HomeLabel("Network")
+                    Spacer(minLength: 10)
+                    HStack(alignment: .top, spacing: 0) {
+                        StatBlock(label: "Block", value: WidgetFormat.number(snap.blockHeight))
                         Spacer()
-                        StaleDot(stale: entry.isStale)
+                        StatBlock(label: "Fee", value: "\(snap.feeHigh) sat/vB", sub: snap.feeCongestion)
+                        Spacer()
+                        StatBlock(label: "Halving", value: "\(pct)%")
                     }
-                    HStack(spacing: 16) {
-                        MetricRow(icon: "cube.fill", value: WidgetFormat.number(snap.blockHeight), caption: "block height")
-                        MetricRow(icon: "banknote.fill", value: snap.feeSummary, caption: "sat/vB")
-                    }
-                    MetricRow(icon: "hourglass", value: "Halving \(pct)%", caption: "\(WidgetFormat.number(snap.blocksUntilHalving)) blocks left")
+                    Spacer(minLength: 0)
                 }
             default: // systemSmall
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
-                        Text("Network").font(.caption2).foregroundStyle(.secondary)
-                        Spacer()
-                        StaleDot(stale: entry.isStale)
-                    }
-                    MetricRow(icon: "cube.fill", value: WidgetFormat.number(snap.blockHeight), caption: "block")
-                    MetricRow(icon: "banknote.fill", value: "\(snap.feeHigh) sat/vB", caption: snap.feeCongestion)
-                    MetricRow(icon: "hourglass", value: "\(pct)%", caption: "to halving")
+                VStack(alignment: .leading, spacing: 12) {
+                    HomeLabel("Network")
+                    StatBlock(label: "Block", value: WidgetFormat.number(snap.blockHeight))
+                    StatBlock(label: "Fee", value: "\(snap.feeHigh) sat/vB", sub: snap.feeCongestion)
+                    StatBlock(label: "Halving", value: "\(pct)%")
                 }
             }
         }
@@ -222,6 +234,7 @@ struct HalvingWidgetView: View {
             let pct = Int(snap.halvingProgress * 100)
             let left = WidgetFormat.number(snap.blocksUntilHalving)
             switch family {
+
             case .accessoryInline:
                 Text("Halving \(pct)% · \(left) blocks")
             case .accessoryCircular:
@@ -238,20 +251,17 @@ struct HalvingWidgetView: View {
                     Gauge(value: snap.halvingProgress) { EmptyView() }.gaugeStyle(.accessoryLinear)
                 }
                 .font(.caption)
-            default: // systemSmall
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "hourglass").foregroundStyle(Color.btcOrange)
-                        Text("Halving").font(.caption).foregroundStyle(.secondary)
-                        Spacer()
-                        StaleDot(stale: entry.isStale)
-                    }
-                    Text("\(pct)%")
-                        .font(.system(.largeTitle, design: .rounded).weight(.bold))
-                        .minimumScaleFactor(0.5).lineLimit(1)
+
+            default: // systemSmall (home)
+                VStack(alignment: .leading, spacing: 0) {
+                    HomeLabel("Halving")
+                    Spacer(minLength: 8)
+                    BigValue(text: "\(pct)%", size: 34)
+                    Spacer(minLength: 8)
                     ProgressView(value: snap.halvingProgress).tint(Color.btcOrange)
-                    Text("\(left) blocks left").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                    Text(snap.halvingETA, style: .date).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
+                    Text("\(left) blocks left")
+                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                        .padding(.top, 4)
                 }
             }
         }
@@ -267,37 +277,33 @@ struct BlockWidgetView: View {
     var body: some View {
         WidgetGate(family: family, entry: entry) { snap in
             switch family {
+
             case .accessoryInline:
                 Text("Block \(WidgetFormat.number(snap.blockHeight))")
             case .accessoryCircular:
                 VStack(spacing: 0) {
-                    Image(systemName: "cube.fill").font(.caption2)
+                    Text("BLOCK").font(.system(size: 9, weight: .medium))
                     Text(WidgetFormat.priceCompact(Double(snap.blockHeight)))
                         .font(.system(.caption, design: .rounded).weight(.bold))
                         .minimumScaleFactor(0.5).lineLimit(1)
                 }
             case .accessoryRectangular:
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Block height").fontWeight(.semibold)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Block height").font(.caption2).foregroundStyle(.secondary)
                     Text(WidgetFormat.number(snap.blockHeight))
-                        .font(.system(.title3, design: .rounded).weight(.bold))
+                        .font(.system(.headline, design: .rounded))
+                        .minimumScaleFactor(0.6).lineLimit(1)
                     Text("\(WidgetFormat.number(snap.blocksUntilHalving)) to halving")
+                        .font(.caption2)
                 }
-                .font(.caption).lineLimit(1)
-            default: // systemSmall
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "cube.fill").foregroundStyle(Color.btcOrange)
-                        Text("Block height").font(.caption).foregroundStyle(.secondary)
-                        Spacer()
-                        StaleDot(stale: entry.isStale)
-                    }
-                    Spacer(minLength: 0)
-                    Text(WidgetFormat.number(snap.blockHeight))
-                        .font(.system(.title, design: .rounded).weight(.bold))
-                        .minimumScaleFactor(0.4).lineLimit(1)
-                    Spacer(minLength: 0)
-                    Text("\(WidgetFormat.number(snap.blocksUntilHalving)) blocks to halving")
+
+            default: // systemSmall (home)
+                VStack(alignment: .leading, spacing: 0) {
+                    HomeLabel("Block height")
+                    Spacer(minLength: 8)
+                    BigValue(text: WidgetFormat.number(snap.blockHeight), size: 30)
+                    Spacer(minLength: 8)
+                    Text("\(WidgetFormat.number(snap.blocksUntilHalving)) to halving")
                         .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
