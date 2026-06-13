@@ -14,6 +14,7 @@ class SettingsManager: ObservableObject {
     @Published var preferredCurrency: String {
         didSet {
             UserDefaults.standard.set(preferredCurrency, forKey: "preferredCurrency")
+            syncWidgets()
         }
     }
     
@@ -35,6 +36,15 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    /// DEV ONLY: simulates the premium unlock so the widgets can be tested
+    /// before the real StoreKit purchase exists. Mirrored to the App Group.
+    @Published var widgetsPremiumDev: Bool {
+        didSet {
+            UserDefaults.standard.set(widgetsPremiumDev, forKey: "widgetsPremiumDev")
+            syncWidgets()
+        }
+    }
+
     /// Live BTC prices per currency code, written by DashboardViewModel after every fetch.
     /// Never persisted — starts empty, populates within seconds of app launch.
     @Published var btcPrices: [String: Double] = [:]
@@ -44,5 +54,16 @@ class SettingsManager: ObservableObject {
         self.hapticsEnabled = UserDefaults.standard.bool(forKey: "hapticsEnabled")
         self.showWalletTab = UserDefaults.standard.object(forKey: "showWalletTab") as? Bool ?? true
         self.gapLimit = UserDefaults.standard.object(forKey: "gapLimit") as? Int ?? 20
+        #if DEBUG
+        self.widgetsPremiumDev = UserDefaults.standard.object(forKey: "widgetsPremiumDev") as? Bool ?? true
+        #else
+        self.widgetsPremiumDev = UserDefaults.standard.object(forKey: "widgetsPremiumDev") as? Bool ?? false
+        #endif
+        syncWidgets()
+    }
+
+    /// Pushes currency + premium state into the widgets' shared App Group container.
+    private func syncWidgets() {
+        WidgetBridge.sync(currency: preferredCurrency, isPremium: widgetsPremiumDev)
     }
 }

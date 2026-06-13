@@ -71,6 +71,17 @@ struct SettingsView: View {
                             }
                         }
 
+                        #if DEBUG
+                        // MARK: - Developer (dev builds only)
+                        SettingsSection(title: "Developer") {
+                            SettingsRow(title: "Widgets Premium (Dev)") {
+                                Toggle("", isOn: $settings.widgetsPremiumDev)
+                                    .labelsHidden()
+                                    .tint(Color.bitcoinOrange)
+                            }
+                        }
+                        #endif
+
                         // MARK: - Node
                         SettingsSection(title: "Node") {
                             NavigationLink {
