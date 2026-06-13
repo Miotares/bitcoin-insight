@@ -37,7 +37,7 @@ struct SettingsView: View {
                 Text("Unlock all widgets")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
-                Text("13 Home- & Lock-screen widgets — live price, fees, block height, halving and more.")
+                Text("13 Home and Lock screen widgets for live price, fees, block height, halving and more.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 6) {

@@ -29,7 +29,7 @@ struct PaywallView: View {
                             SectionLabel("Premium")
                             Text("Unlock all widgets")
                                 .font(.system(size: 32, weight: .bold, design: .rounded))
-                            Text("Home- and Lock-screen widgets — live price, fees, block height, halving and more, straight from your own backend.")
+                            Text("Home and Lock screen widgets for live price, fees, block height, halving and more.")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -37,7 +37,7 @@ struct PaywallView: View {
                         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                             benefit("13 widgets", "Price, fees, mempool, hashrate, halving, Lightning…")
                             benefit("Home & Lock screen", "Small, medium and large, plus accessory sizes.")
-                            benefit("One-time purchase", "Pay once — yours forever. No subscription.")
+                            benefit("One-time purchase", "Pay once, yours forever. No subscription.")
                         }
                         .card()
                     }
