@@ -130,6 +130,46 @@ struct WalletAPIService {
         }
     }
 
+    // MARK: - Concurrent Address Stats
+
+    /// Fetches address stats for many addresses with bounded concurrency
+    /// (sliding window of at most `maxConcurrent` in-flight requests).
+    ///
+    /// Each request goes through `fetchAddressData`, which already retries
+    /// HTTP 429 with exponential back-off — so a short burst that trips the
+    /// rate limit self-heals instead of failing. Results are keyed by address.
+    /// `URLError` and `CancellationError` propagate unchanged so callers can
+    /// detect cancellation and produce friendly messages.
+    static func fetchAddressDataConcurrently(
+        _ addresses: [String],
+        maxConcurrent: Int = 5
+    ) async throws -> [String: AddressAPIResponse] {
+        guard !addresses.isEmpty else { return [:] }
+        let limit = max(1, maxConcurrent)
+
+        var results: [String: AddressAPIResponse] = [:]
+        results.reserveCapacity(addresses.count)
+
+        try await withThrowingTaskGroup(of: AddressAPIResponse.self) { group in
+            var iterator = addresses.makeIterator()
+
+            // Prime the window with up to `limit` concurrent tasks.
+            for _ in 0..<limit {
+                guard let address = iterator.next() else { break }
+                group.addTask { try await fetchAddressData(address: address) }
+            }
+
+            // As each finishes, record it and enqueue the next address.
+            while let response = try await group.next() {
+                results[response.address] = response
+                if let address = iterator.next() {
+                    group.addTask { try await fetchAddressData(address: address) }
+                }
+            }
+        }
+        return results
+    }
+
     // MARK: - Retry helper (handles 429 with exponential back-off)
 
     /// Fetches `url`, retrying up to `maxRetries` times:
