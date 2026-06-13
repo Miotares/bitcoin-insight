@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------------------
+# macOS
+# ---------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# ---------------------------------------------------------------------------
+# Xcode — user-specific state (never share)
+# ---------------------------------------------------------------------------
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# Keep shared schemes & the shared Package.resolved (xcshareddata is tracked),
+# but ignore the per-user SwiftPM state inside the workspace.
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# ---------------------------------------------------------------------------
+# Build output / generated
+# ---------------------------------------------------------------------------
+build/
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.pbxuser
+!default.pbxuser
+
+# ---------------------------------------------------------------------------
+# Swift Package Manager
+# ---------------------------------------------------------------------------
+.build/
+.swiftpm/
+
+# ---------------------------------------------------------------------------
+# Dependency managers (not used here, kept as a guard)
+# ---------------------------------------------------------------------------
+Pods/
+Carthage/Build/
+
+# ---------------------------------------------------------------------------
+# Fastlane
+# ---------------------------------------------------------------------------
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/test_output
+
+# ---------------------------------------------------------------------------
+# Secrets / credentials — must never be committed
+# ---------------------------------------------------------------------------
+.env
+.env.*
+*.p12
+*.cer
+*.pem
+*.mobileprovision
+*.keystore
+secrets.plist
+Secrets.swift
