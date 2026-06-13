@@ -164,11 +164,9 @@ struct SettingsSection<Content: View>: View {
             VStack(spacing: 0) {
                 content
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, Theme.Spacing.lg)
             .padding(.vertical, 6)
-            .background(Material.ultraThin)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: Color.black.opacity(0.03), radius: 10, x: 0, y: 4)
+            .cardSurface()
             .padding(.horizontal)
         }
     }

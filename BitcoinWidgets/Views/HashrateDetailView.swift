@@ -112,10 +112,9 @@ struct HashrateDetailView: View {
                             }
                             .padding()
                         }
-                        .background(Material.ultraThin)
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .cardSurface()
                         .padding(.horizontal)
-                        
+
                     } else if let error = errorMessage {
                         VStack(spacing: 16) {
                             Image(systemName: "wifi.exclamationmark")

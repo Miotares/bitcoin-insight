@@ -142,9 +142,7 @@ struct WalletDetailView: View {
                             }
                         }
                     }
-                    .padding(20)
-                    .background(Material.ultraThin)
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .card(padding: Theme.Spacing.xl)
                     .padding(.horizontal)
 
                     // MARK: - Tab Selector
@@ -366,8 +364,7 @@ struct WalletDetailView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .background(Material.ultraThin)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .cardSurface()
             .padding(.horizontal)
         }
     }
@@ -476,8 +473,7 @@ struct WalletDetailView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .background(Material.ultraThin)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .cardSurface()
             .padding(.horizontal)
         }
     }

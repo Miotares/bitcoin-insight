@@ -12,11 +12,11 @@ struct DetailStatCard: View {
     let value: String
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             Text(title)
-                .font(.caption)
+                .font(.cardLabel)
                 .foregroundStyle(.secondary)
-            
+
             Text(value)
                 .font(.headline)
                 .fontWeight(.bold)
@@ -29,8 +29,6 @@ struct DetailStatCard: View {
                 }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Material.ultraThin)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .card(padding: Theme.Spacing.lg)
     }
 }

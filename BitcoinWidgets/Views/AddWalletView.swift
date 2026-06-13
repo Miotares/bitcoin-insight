@@ -71,10 +71,10 @@ struct AddWalletView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.orange.opacity(0.08))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            RoundedRectangle(cornerRadius: Theme.Radius.inner, style: .continuous)
                                 .stroke(Color.orange.opacity(0.25), lineWidth: 1)
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.inner, style: .continuous))
                         .padding(.horizontal)
 
                         // MARK: - Input Card
@@ -158,9 +158,7 @@ struct AddWalletView: View {
                             .padding(.top, 16)
                             .padding(.bottom, 16)
                         }
-                        .background(Material.ultraThin)
-                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                        .shadow(color: Color.black.opacity(0.03), radius: 10, x: 0, y: 4)
+                        .cardSurface()
                         .padding(.horizontal)
 
                         // MARK: - Error

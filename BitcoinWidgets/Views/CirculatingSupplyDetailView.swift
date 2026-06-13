@@ -66,9 +66,7 @@ struct CirculatingSupplyDetailView: View {
                             
                             HalvingChart(currentBlockHeight: height)
                         }
-                        .padding()
-                        .background(Material.ultraThin)
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .card(padding: Theme.Spacing.lg)
                         .padding(.horizontal)
                     }
                 }

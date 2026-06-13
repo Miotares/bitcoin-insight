@@ -17,25 +17,25 @@ struct AnimatedBackgroundView: View {
             Color(uiColor: .systemBackground)
                 .ignoresSafeArea()
             
-            // Blob 1: Accent or Bitcoin Orange
+            // Blob 1: Accent or brand orange
             Circle()
-                .fill((accentColor ?? .bitcoinOrange).opacity(0.2))
+                .fill((accentColor ?? Theme.Accent.brand).opacity(0.16))
                 .frame(width: 300, height: 300)
                 .blur(radius: 60)
                 .offset(x: animate ? -100 : 100, y: animate ? -100 : 100)
                 .animation(.easeInOut(duration: 30).repeatForever(autoreverses: true), value: animate)
-            
+
             // Blob 2: Blue
             Circle()
-                .fill(Color.blue.opacity(0.15))
+                .fill(Color.blue.opacity(0.10))
                 .frame(width: 350, height: 350)
                 .blur(radius: 60)
                 .offset(x: animate ? 150 : -150, y: animate ? 100 : -100)
                 .animation(.easeInOut(duration: 35).repeatForever(autoreverses: true), value: animate)
-            
+
             // Blob 3: Purple
             Circle()
-                .fill(Color.purple.opacity(0.15))
+                .fill(Color.purple.opacity(0.10))
                 .frame(width: 300, height: 300)
                 .blur(radius: 60)
                 .offset(x: animate ? -50 : 50, y: animate ? 200 : -200)

@@ -88,7 +88,7 @@ struct WalletTabView: View {
 
     private var normalContent: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: Theme.Spacing.xl) {
                 if viewModel.wallets.isEmpty {
                     emptyState
                 } else {
@@ -122,7 +122,7 @@ struct WalletTabView: View {
                         NavigationLink(destination: WalletDetailView(wallet: wallet, viewModel: viewModel)) {
                             WalletCard(wallet: wallet, viewModel: viewModel, currency: settings.preferredCurrency)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CardButtonStyle())
                         .padding(.horizontal)
                     }
                 }
@@ -181,18 +181,18 @@ struct WalletTabView: View {
     // MARK: - Balance Hero Card
 
     private var balanceHeroCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            HStack(spacing: Theme.Spacing.sm) {
                 Image(systemName: "bitcoinsign.circle.fill")
                     .font(.title)
-                    .foregroundStyle(Color.bitcoinOrange)
+                    .foregroundStyle(Theme.Accent.brand)
                 Text("Total Balance")
                     .font(.headline)
                     .foregroundStyle(.secondary)
             }
 
             Text(Formatters.formatBTC(totalBTC))
-                .font(.system(size: 42, weight: .bold, design: .rounded))
+                .font(.heroValue)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
                 .contentTransition(.numericText())
@@ -225,10 +225,7 @@ struct WalletTabView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(24)
-        .background(Material.ultraThin)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: Color.black.opacity(0.03), radius: 10, x: 0, y: 4)
+        .card(padding: Theme.Spacing.xxl)
         .padding(.horizontal)
     }
 
@@ -350,13 +347,14 @@ struct WalletCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
+        .padding(Theme.Spacing.xl)
         .background(Material.ultraThin)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(isNeutral ? Color.clear : walletColor.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .strokeBorder(isNeutral ? Theme.Stroke.hairline : walletColor.opacity(0.3),
+                              lineWidth: isNeutral ? 0.5 : 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: Color.black.opacity(0.03), radius: 10, x: 0, y: 4)
+        .shadow(color: Theme.Shadow.cardColor, radius: Theme.Shadow.cardRadius, x: 0, y: Theme.Shadow.cardY)
     }
 }

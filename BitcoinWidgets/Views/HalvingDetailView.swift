@@ -177,10 +177,9 @@ struct HalvingDetailView: View {
                         .padding()
     
                     }
-                    .background(Material.ultraThin)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .cardSurface()
                     .padding(.horizontal)
-                    
+
                     // MARK: - Reward Chart
                     if let height = blockHeight {
                         VStack(alignment: .leading, spacing: 16) {
@@ -190,9 +189,7 @@ struct HalvingDetailView: View {
                             
                             HalvingRewardChart(currentBlockHeight: height)
                         }
-                        .padding()
-                        .background(Material.ultraThin)
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .card(padding: Theme.Spacing.lg)
                         .padding(.horizontal)
                     }
                 }
