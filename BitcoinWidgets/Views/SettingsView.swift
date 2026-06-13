@@ -58,7 +58,7 @@ struct SettingsView: View {
             )
         }
         .buttonStyle(CardButtonStyle())
-        .padding(.horizontal)
+        .padding(.horizontal, 20)
     }
 
     private var premiumUnlockedCard: some View {
@@ -76,7 +76,7 @@ struct SettingsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
-        .padding(.horizontal)
+        .padding(.horizontal, 20)
     }
 
     var body: some View {
@@ -86,10 +86,6 @@ struct SettingsView: View {
 
                 ScrollView {
                     VStack(spacing: 28) {
-                        Text("Settings")
-                            .font(.largeTitle).fontWeight(.bold)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
 
                         // MARK: - Premium
                         if store.hasPremium {
@@ -180,7 +176,7 @@ struct SettingsView: View {
                     .padding(.bottom, 20)
                 }
                 .scrollContentBackground(.hidden)
-                .toolbar(.hidden, for: .navigationBar)
+                .navigationTitle("Settings")
                 .sheet(isPresented: $showPaywall) {
                     PaywallView()
                 }
@@ -216,7 +212,7 @@ struct SettingsSection<Content: View>: View {
             .padding(.horizontal, Theme.Spacing.lg)
             .padding(.vertical, 6)
             .cardSurface()
-            .padding(.horizontal)
+            .padding(.horizontal, 20)
         }
     }
 }

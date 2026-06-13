@@ -11,18 +11,13 @@ struct DashboardView: View {
 
                 ScrollView {
                     VStack(spacing: Theme.Spacing.xxl) {
-                        Text("Dashboard")
-                            .font(.largeTitle).fontWeight(.bold)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-
                         // Hero Price (box-less, typographic)
                         PriceHeroCard(
                             price: viewModel.livePrice,
                             currency: settings.preferredCurrency,
                             changeColor: viewModel.priceChangeColor
                         )
-                        .padding(.horizontal)
+                        .padding(.horizontal, 20)
 
                         // Main Stats Grid
                         LazyVGrid(
@@ -53,14 +48,14 @@ struct DashboardView: View {
                                 value: Formatters.formatHashrate(viewModel.hashrate)
                             ) { HashrateDetailView() }
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, 20)
 
                         FeeRowView(fees: viewModel.fees)
-                            .padding(.horizontal)
+                            .padding(.horizontal, 20)
 
                         if viewModel.moscowTime > 0 {
                             MoscowTimeWidget(moscowTime: viewModel.moscowTime)
-                                .padding(.horizontal)
+                                .padding(.horizontal, 20)
                         }
 
                         if viewModel.circulatingSupply > 0 {
@@ -69,7 +64,7 @@ struct DashboardView: View {
                                     supply: viewModel.circulatingSupply,
                                     percent: viewModel.circulatingSupplyPercent
                                 )
-                                .padding(.horizontal)
+                                .padding(.horizontal, 20)
                             }
                             .buttonStyle(CardButtonStyle())
                         }
@@ -78,18 +73,18 @@ struct DashboardView: View {
                             blocksRemaining: viewModel.blocksRemainingToHalving,
                             progress: viewModel.halvingProgress
                         )
-                        .padding(.horizontal)
+                        .padding(.horizontal, 20)
 
                         LightningCard(
                             channels: viewModel.lightningChannelCount,
                             nodes: viewModel.lightningNodeCount,
                             capacity: viewModel.lightningCapacity
                         )
-                        .padding(.horizontal)
+                        .padding(.horizontal, 20)
 
                         if !viewModel.feePercentiles.isEmpty {
                             FeeDistributionWidget(fees: viewModel.feePercentiles, feeThresholds: viewModel.fees)
-                                .padding(.horizontal)
+                                .padding(.horizontal, 20)
                         }
 
                         Spacer(minLength: Theme.Spacing.xl)
@@ -97,7 +92,7 @@ struct DashboardView: View {
                     .padding(.top, Theme.Spacing.sm)
                 }
                 .scrollContentBackground(.hidden)
-                .toolbar(.hidden, for: .navigationBar)
+                .navigationTitle("Dashboard")
                 .refreshable { await viewModel.refreshData() }
             }
             .onChange(of: settings.preferredCurrency) { _ in
