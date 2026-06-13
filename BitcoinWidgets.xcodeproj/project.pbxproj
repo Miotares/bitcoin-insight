@@ -53,6 +53,13 @@
 			);
 			target = D7CCC7E72FDD7AD100F967F5 /* InsightWidgetsExtension */;
 		};
+		D7CCC8EA2FDD95CA00F967F5 /* Exceptions for "BitcoinWidgets" folder in "BitcoinWidgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D7D59E422E917CD000E985CF /* BitcoinWidgets */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -66,6 +73,9 @@
 		};
 		D7D59E452E917CD000E985CF /* BitcoinWidgets */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D7CCC8EA2FDD95CA00F967F5 /* Exceptions for "BitcoinWidgets" folder in "BitcoinWidgets" target */,
+			);
 			path = BitcoinWidgets;
 			sourceTree = "<group>";
 		};
@@ -449,6 +459,7 @@
 				DEVELOPMENT_TEAM = QS5H87MR36;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BitcoinWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Bitcoin Insight";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -485,6 +496,7 @@
 				DEVELOPMENT_TEAM = QS5H87MR36;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BitcoinWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Bitcoin Insight";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

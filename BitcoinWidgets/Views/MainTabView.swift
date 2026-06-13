@@ -18,7 +18,7 @@ struct MainTabView: View {
         TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem {
-                    Label("Dashboard", systemImage: "bitcoinsign.circle.fill")
+                    Label("Dashboard", systemImage: "chart.line.uptrend.xyaxis")
                 }
                 .tag(0)
 

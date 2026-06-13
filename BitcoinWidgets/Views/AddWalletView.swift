@@ -25,99 +25,58 @@ struct AddWalletView: View {
                 AnimatedBackgroundView()
 
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: Theme.Spacing.xxl) {
 
-                        // MARK: - Privacy Warning
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "lock.shield.fill")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.orange)
-                                Text("Watch-Only Wallet")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.orange)
-                            }
+                        // MARK: - Watch-only note (flat, editorial)
+                        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                            Text("WATCH-ONLY")
+                                .font(.caption).fontWeight(.semibold).tracking(0.8)
+                                .foregroundStyle(Theme.Accent.brand)
 
-                            VStack(alignment: .leading, spacing: 8) {
-                                Label {
-                                    Text("Enter your **xpub, ypub, zpub** or a **Bitcoin address** — never your private key.")
-                                        .fixedSize(horizontal: false, vertical: true)
-                                } icon: {
-                                    Image(systemName: "eye.slash.fill")
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Label {
-                                    Text("This wallet is **read-only**. You can track your balance and transactions, but cannot send Bitcoin.")
-                                        .fixedSize(horizontal: false, vertical: true)
-                                } icon: {
-                                    Image(systemName: "arrow.up.circle")
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Label {
-                                    Text("Balances are fetched via **mempool.space**. Your addresses will be visible to this service.")
-                                        .fixedSize(horizontal: false, vertical: true)
-                                } icon: {
-                                    Image(systemName: "network")
-                                        .foregroundStyle(.secondary)
-                                }
+                            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                                Text("Enter your **xpub, ypub, zpub** or a **Bitcoin address** — never your private key.")
+                                Text("Read-only: you can track balance and transactions, but cannot send Bitcoin.")
+                                Text("Balances are fetched via **mempool.space** — your addresses are visible to it.")
                             }
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                         }
-                        .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.orange.opacity(0.08))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Theme.Radius.inner, style: .continuous)
-                                .stroke(Color.orange.opacity(0.25), lineWidth: 1)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.inner, style: .continuous))
+                        .card()
                         .padding(.horizontal)
 
-                        // MARK: - Input Card
+                        // MARK: - Input
                         VStack(spacing: 0) {
 
-                            // Name row
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Wallet Name")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.secondary)
-                                    .textCase(.uppercase)
-                                    .tracking(0.3)
+                            // Name
+                            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                                SectionLabel("Wallet Name")
                                 TextField("e.g. My Bitcoin Wallet", text: $name)
                                     .font(.body)
                                     .submitLabel(.next)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 16)
+                            .padding(.horizontal, Theme.Spacing.xl)
+                            .padding(.vertical, Theme.Spacing.lg)
 
-                            Divider().padding(.leading, 20)
+                            Divider().padding(.leading, Theme.Spacing.xl)
 
-                            // Public key row
-                            VStack(alignment: .leading, spacing: 8) {
+                            // Public key
+                            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                                 HStack {
-                                    Text("Public Key")
-                                        .font(.caption)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.secondary)
-                                        .textCase(.uppercase)
-                                        .tracking(0.3)
+                                    SectionLabel("Public Key")
                                     Spacer()
                                     Button {
                                         if let str = UIPasteboard.general.string {
                                             publicKey = str.trimmingCharacters(in: .whitespacesAndNewlines)
                                         }
                                     } label: {
-                                        Label("Paste", systemImage: "doc.on.clipboard")
-                                            .font(.caption)
-                                            .foregroundStyle(Color.bitcoinOrange)
+                                        Text("Paste")
+                                            .font(.caption).fontWeight(.semibold)
+                                            .foregroundStyle(Theme.Accent.brand)
                                             .padding(.horizontal, 10)
                                             .padding(.vertical, 5)
-                                            .background(Color.bitcoinOrange.opacity(0.12))
+                                            .background(Theme.Accent.brand.opacity(0.12))
                                             .clipShape(Capsule())
                                     }
                                 }
@@ -129,83 +88,56 @@ struct AddWalletView: View {
 
                                 if !publicKey.isEmpty {
                                     if privateKeyDetected {
-                                        HStack(spacing: 5) {
-                                            Image(systemName: "exclamationmark.shield.fill")
-                                                .font(.caption)
-                                                .foregroundStyle(.red)
-                                            Text("Private key detected — never enter your private key here!")
-                                                .font(.caption)
-                                                .foregroundStyle(.red)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                        }
-                                        .padding(.bottom, 2)
+                                        Text("Private key detected — never enter your private key here.")
+                                            .font(.caption).foregroundStyle(Theme.Accent.down)
+                                            .fixedSize(horizontal: false, vertical: true)
                                     } else {
-                                        HStack(spacing: 5) {
-                                            Image(systemName: viewModel.isValidInput(publicKey)
-                                                  ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                                .font(.caption)
-                                                .foregroundStyle(viewModel.isValidInput(publicKey) ? .green : .red)
-                                            Text(viewModel.isValidInput(publicKey)
-                                                 ? detectedType.displayName : "Invalid format")
-                                                .font(.caption)
-                                                .foregroundStyle(viewModel.isValidInput(publicKey) ? .green : .red)
-                                        }
-                                        .padding(.bottom, 2)
+                                        Text(viewModel.isValidInput(publicKey) ? detectedType.displayName : "Invalid format")
+                                            .font(.caption)
+                                            .foregroundStyle(viewModel.isValidInput(publicKey) ? Theme.Accent.up : Theme.Accent.down)
                                     }
                                 }
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 16)
-                            .padding(.bottom, 16)
+                            .padding(.horizontal, Theme.Spacing.xl)
+                            .padding(.vertical, Theme.Spacing.lg)
                         }
                         .cardSurface()
                         .padding(.horizontal)
 
                         // MARK: - Error
                         if showError {
-                            HStack(spacing: 8) {
-                                Image(systemName: "exclamationmark.circle.fill")
-                                    .foregroundStyle(.red)
-                                Text(errorText)
-                                    .font(.caption)
-                                    .foregroundStyle(.red)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .padding(14)
-                            .background(Color.red.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .padding(.horizontal)
+                            Text(errorText)
+                                .font(.caption).foregroundStyle(Theme.Accent.down)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(Theme.Spacing.lg)
+                                .background(Theme.Accent.down.opacity(0.10))
+                                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.inner, style: .continuous))
+                                .padding(.horizontal)
                         }
 
-                        // MARK: - Add Button
+                        // MARK: - Add
                         Button {
                             Task { await addWallet() }
                         } label: {
-                            HStack(spacing: 10) {
+                            Group {
                                 if isAdding {
-                                    ProgressView().tint(.white)
-                                    Text("Validating…")
+                                    HStack(spacing: 8) { ProgressView().tint(.white); Text("Validating…") }
                                 } else {
-                                    Image(systemName: "plus.circle.fill")
                                     Text("Add Wallet")
                                 }
                             }
                             .font(.headline)
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
-                            .padding(16)
-                            .background(
-                                isValid && !isAdding
-                                    ? Color.bitcoinOrange
-                                    : Color.gray.opacity(0.4)
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .padding()
+                            .background(isValid && !isAdding ? Theme.Accent.brand : Color.gray.opacity(0.3))
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.inner, style: .continuous))
                         }
                         .disabled(!isValid || isAdding)
                         .padding(.horizontal)
-                        .padding(.bottom, 20)
+                        .padding(.bottom, Theme.Spacing.xl)
                     }
-                    .padding(.top, 8)
+                    .padding(.top, Theme.Spacing.sm)
                 }
                 .scrollContentBackground(.hidden)
             }
