@@ -92,8 +92,10 @@ struct Provider: TimelineProvider {
 
             let entry = StatsEntry(date: Date(), snapshot: snapshot, currency: currency,
                                    isPremium: true, isStale: isStale)
-            // Refresh sooner if we have nothing yet, otherwise the usual ~15 min cadence.
-            let next = Date().addingTimeInterval(snapshot == nil ? 5 * 60 : 15 * 60)
+            // Request a tight cadence so WidgetKit refreshes as often as its budget
+            // allows (it still throttles to ~15-60 min in practice). Sooner if we
+            // have nothing cached yet.
+            let next = Date().addingTimeInterval(snapshot == nil ? 2 * 60 : 5 * 60)
             completion(Timeline(entries: [entry], policy: .after(next)))
         }
     }
