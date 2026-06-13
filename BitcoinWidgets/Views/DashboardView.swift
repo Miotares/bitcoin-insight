@@ -11,6 +11,11 @@ struct DashboardView: View {
 
                 ScrollView {
                     VStack(spacing: Theme.Spacing.xxl) {
+                        Text("Dashboard")
+                            .font(.largeTitle).fontWeight(.bold)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+
                         // Hero Price (box-less, typographic)
                         PriceHeroCard(
                             price: viewModel.livePrice,
@@ -92,7 +97,7 @@ struct DashboardView: View {
                     .padding(.top, Theme.Spacing.sm)
                 }
                 .scrollContentBackground(.hidden)
-                .navigationTitle("Dashboard")
+                .toolbar(.hidden, for: .navigationBar)
                 .refreshable { await viewModel.refreshData() }
             }
             .onChange(of: settings.preferredCurrency) { _ in

@@ -20,51 +20,16 @@ struct WalletTabView: View {
             ZStack {
                 AnimatedBackgroundView()
 
-                if isReordering {
-                    reorderList
-                } else {
-                    normalContent
-                }
-            }
-            .navigationTitle("Wallet")
-            .toolbar {
-                if isReordering {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Done") {
-                            Haptics.selection()
-                            withAnimation { isReordering = false }
-                        }
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.bitcoinOrange)
-                    }
-                } else {
-                    // Reorder only available when 2+ wallets AND no active sync.
-                    // A sync pushes Combine updates into the List's ForEach which
-                    // corrupts SwiftUI's editMode diff and causes the stuck-reorder bug.
-                    if viewModel.wallets.count > 1 && !isAnySyncing {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                Haptics.selection()
-                                isReordering = true
-                            } label: {
-                                Image(systemName: "arrow.up.arrow.down.circle")
-                                    .font(.title3)
-                                    .foregroundStyle(Color.bitcoinOrange)
-                            }
-                        }
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            Haptics.selection()
-                            showAddWallet = true
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title3)
-                                .foregroundStyle(Color.bitcoinOrange)
-                        }
+                VStack(spacing: 0) {
+                    header
+                    if isReordering {
+                        reorderList
+                    } else {
+                        normalContent
                     }
                 }
             }
+            .toolbar(.hidden, for: .navigationBar)
             // Auto-exit reorder mode if a sync starts mid-reorder.
             // Combine updates to a List in editMode cause SwiftUI to get stuck.
             .onChange(of: isAnySyncing) { _, syncing in
@@ -82,6 +47,48 @@ struct WalletTabView: View {
                 AddWalletView(viewModel: viewModel)
             }
         }
+    }
+
+    // MARK: - Header (content-aligned title + actions)
+
+    private var header: some View {
+        HStack(spacing: Theme.Spacing.lg) {
+            Text("Wallet")
+                .font(.largeTitle).fontWeight(.bold)
+            Spacer()
+            if isReordering {
+                Button("Done") {
+                    Haptics.selection()
+                    withAnimation { isReordering = false }
+                }
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.bitcoinOrange)
+            } else {
+                // Reorder only when 2+ wallets AND no active sync (editMode + Combine
+                // updates to the List otherwise corrupt the reorder diff).
+                if viewModel.wallets.count > 1 && !isAnySyncing {
+                    Button {
+                        Haptics.selection()
+                        isReordering = true
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down.circle")
+                            .font(.title2)
+                            .foregroundStyle(Color.bitcoinOrange)
+                    }
+                }
+                Button {
+                    Haptics.selection()
+                    showAddWallet = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.bitcoinOrange)
+                }
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, Theme.Spacing.sm)
+        .padding(.bottom, Theme.Spacing.sm)
     }
 
     // MARK: - Normal Content

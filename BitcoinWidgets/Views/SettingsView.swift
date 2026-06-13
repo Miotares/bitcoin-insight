@@ -86,6 +86,10 @@ struct SettingsView: View {
 
                 ScrollView {
                     VStack(spacing: 28) {
+                        Text("Settings")
+                            .font(.largeTitle).fontWeight(.bold)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
 
                         // MARK: - Premium
                         if store.hasPremium {
@@ -176,7 +180,7 @@ struct SettingsView: View {
                     .padding(.bottom, 20)
                 }
                 .scrollContentBackground(.hidden)
-                .navigationTitle("Settings")
+                .toolbar(.hidden, for: .navigationBar)
                 .sheet(isPresented: $showPaywall) {
                     PaywallView()
                 }
