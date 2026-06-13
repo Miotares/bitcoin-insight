@@ -17,7 +17,9 @@ struct AnimatedBackgroundView: View {
 
     var body: some View {
         ZStack {
-            Color(uiColor: .systemBackground)
+            // Pure black everywhere — incl. modal sheets, which otherwise use
+            // iOS's lighter "elevated" system background (grayish) in dark mode.
+            Color.black
                 .ignoresSafeArea()
 
             // Primary soft glow
