@@ -18,7 +18,7 @@ struct MainTabView: View {
         TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem {
-                    Label("Dashboard", systemImage: "chart.line.uptrend.xyaxis")
+                    Label("Dashboard", systemImage: "square.grid.2x2.fill")
                 }
                 .tag(0)
 
