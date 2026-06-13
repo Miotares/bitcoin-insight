@@ -9,7 +9,6 @@
 import Foundation
 
 enum NetworkClient {
-    // Read-only endpoint: one row, RLS-protected, anon key is publishable.
     private static let endpoint = URL(string:
         "https://hyyagnnsjbpsehriyafn.supabase.co/rest/v1/network_stats?select=payload&id=eq.1")!
     private static let apiKey = "sb_publishable_FEEoI6sfC_EZ1oLP2E0IJQ_Yftfzrk9"
@@ -20,10 +19,22 @@ enum NetworkClient {
             let prices: [String: Double]
             let blockHeight: Int
             let fees: Fees
-            struct Fees: Decodable {
-                let fast: Int
-                let halfHour: Int
-                let hour: Int
+            let mempoolCount: Int?
+            let hashrate: Double?
+            let difficulty: Double?
+            let difficultyAdjustment: Adjustment?
+            let lightning: Lightning?
+
+            struct Fees: Decodable { let fast: Int; let halfHour: Int; let hour: Int }
+            struct Adjustment: Decodable {
+                let progressPercent: Double?
+                let remainingBlocks: Int?
+                let estimatedRetargetPercentage: Double?
+            }
+            struct Lightning: Decodable {
+                let channels: Int?
+                let nodes: Int?
+                let capacity: Int?
             }
         }
     }
@@ -38,18 +49,26 @@ enum NetworkClient {
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
-
-        guard let row = try JSONDecoder().decode([Row].self, from: data).first else {
+        guard let p = try JSONDecoder().decode([Row].self, from: data).first?.payload else {
             throw URLError(.cannotParseResponse)
         }
 
         return NetworkSnapshot(
-            prices: row.payload.prices,
-            blockHeight: row.payload.blockHeight,
-            feeFast: row.payload.fees.fast,
-            feeHalfHour: row.payload.fees.halfHour,
-            feeHour: row.payload.fees.hour,
-            updatedAt: Date()   // when we fetched it
+            prices: p.prices,
+            blockHeight: p.blockHeight,
+            feeFast: p.fees.fast,
+            feeHalfHour: p.fees.halfHour,
+            feeHour: p.fees.hour,
+            mempoolCount: p.mempoolCount ?? 0,
+            hashrate: p.hashrate ?? 0,
+            difficulty: p.difficulty ?? 0,
+            adjustmentProgress: p.difficultyAdjustment?.progressPercent ?? 0,
+            adjustmentRemainingBlocks: p.difficultyAdjustment?.remainingBlocks ?? 0,
+            adjustmentRetargetPercent: p.difficultyAdjustment?.estimatedRetargetPercentage ?? 0,
+            lnChannels: p.lightning?.channels ?? 0,
+            lnNodes: p.lightning?.nodes ?? 0,
+            lnCapacitySats: p.lightning?.capacity ?? 0,
+            updatedAt: Date()
         )
     }
 }

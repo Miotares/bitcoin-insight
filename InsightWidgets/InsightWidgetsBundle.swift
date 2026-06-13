@@ -9,9 +9,20 @@ import SwiftUI
 @main
 struct InsightWidgetsBundle: WidgetBundle {
     var body: some Widget {
+        // Single metrics
         InsightWidgets()        // price
-        NetworkWidget()         // block height + fees + halving %
-        HalvingWidget()         // halving countdown
-        BlockHeightWidget()     // block height
+        BlockHeightWidget()
+        HalvingWidget()
+        MoscowWidget()
+        FeesWidget()
+        HashrateWidget()
+        MempoolWidget()
+        SupplyWidget()
+        LightningWidget()
+        // Themed bundles
+        NetworkWidget()         // block + fees + halving
+        MiningWidget()          // hashrate + difficulty + adjustment
+        MarketWidget()          // price + moscow + supply
+        OverviewWidget()        // systemLarge — everything
     }
 }

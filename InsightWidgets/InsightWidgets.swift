@@ -45,6 +45,25 @@ enum WidgetFormat {
         f.numberStyle = .decimal
         return f.string(from: NSNumber(value: value)) ?? "\(value)"
     }
+
+    static func compact(_ value: Int) -> String { priceCompact(Double(value)) }
+
+    static func hashrate(_ hps: Double) -> String {
+        let units = ["H/s", "KH/s", "MH/s", "GH/s", "TH/s", "PH/s", "EH/s", "ZH/s"]
+        var v = hps, i = 0
+        while v >= 1000 && i < units.count - 1 { v /= 1000; i += 1 }
+        return String(format: "%.0f %@", v, units[i])
+    }
+
+    static func difficulty(_ d: Double) -> String {
+        if d >= 1e12 { return String(format: "%.1f T", d / 1e12) }
+        if d >= 1e9  { return String(format: "%.1f G", d / 1e9) }
+        return number(Int(d))
+    }
+
+    static func btc(_ sats: Int) -> String {
+        String(format: "%.0f BTC", Double(sats) / 100_000_000)
+    }
 }
 
 // MARK: - Derived data (halving + fees)
@@ -70,6 +89,27 @@ extension NetworkSnapshot {
     var feeSummary: String {
         "L \(feeLow) · M \(feeMedium) · H \(feeHigh)"
     }
+}
+
+// MARK: - Derived (market + supply)
+
+extension NetworkSnapshot {
+    /// Sats per 1 USD.
+    var moscowTime: Int {
+        let usd = prices["USD"] ?? 0
+        return usd > 0 ? Int(100_000_000 / usd) : 0
+    }
+
+    /// Circulating supply in BTC, computed from the block height.
+    var circulatingSupply: Double {
+        let interval = 210_000
+        var subsidy = 50.0, supply = 0.0, h = blockHeight
+        while h >= interval { supply += Double(interval) * subsidy; h -= interval; subsidy /= 2 }
+        supply += Double(h) * subsidy
+        return supply
+    }
+
+    var supplyPercent: Double { circulatingSupply / 21_000_000 * 100 }
 }
 
 // MARK: - Timeline
@@ -187,6 +227,118 @@ struct BlockHeightWidget: Widget {
         .configurationDisplayName("Block Height")
         .description("The current Bitcoin block height.")
         .supportedFamilies([.systemSmall, .accessoryInline, .accessoryCircular, .accessoryRectangular])
+    }
+}
+
+// MARK: - More single-metric widgets
+
+struct MoscowWidget: Widget {
+    let kind = "InsightMoscow"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            MoscowWidgetView(entry: entry).containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Moscow Time")
+        .description("Sats per unit of fiat.")
+        .supportedFamilies([.systemSmall, .accessoryInline, .accessoryRectangular])
+    }
+}
+
+struct FeesWidget: Widget {
+    let kind = "InsightFees"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            FeesWidgetView(entry: entry).containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Fees")
+        .description("Recommended fees (low / medium / high).")
+        .supportedFamilies([.systemSmall, .accessoryRectangular])
+    }
+}
+
+struct HashrateWidget: Widget {
+    let kind = "InsightHashrate"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            HashrateWidgetView(entry: entry).containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Hashrate")
+        .description("Network hashrate.")
+        .supportedFamilies([.systemSmall, .accessoryRectangular])
+    }
+}
+
+struct MempoolWidget: Widget {
+    let kind = "InsightMempool"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            MempoolWidgetView(entry: entry).containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Mempool")
+        .description("Unconfirmed transactions.")
+        .supportedFamilies([.systemSmall, .accessoryRectangular])
+    }
+}
+
+struct SupplyWidget: Widget {
+    let kind = "InsightSupply"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            SupplyWidgetView(entry: entry).containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Circulating Supply")
+        .description("Mined supply toward 21M.")
+        .supportedFamilies([.systemSmall, .accessoryRectangular])
+    }
+}
+
+struct LightningWidget: Widget {
+    let kind = "InsightLightning"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            LightningWidgetView(entry: entry).containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Lightning")
+        .description("Lightning Network capacity, nodes and channels.")
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
+// MARK: - Themed bundles
+
+struct MiningWidget: Widget {
+    let kind = "InsightMining"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            MiningWidgetView(entry: entry).containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Mining")
+        .description("Hashrate, difficulty and the next adjustment.")
+        .supportedFamilies([.systemMedium])
+    }
+}
+
+struct MarketWidget: Widget {
+    let kind = "InsightMarket"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            MarketWidgetView(entry: entry).containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Market")
+        .description("Price, Moscow time and supply.")
+        .supportedFamilies([.systemMedium])
+    }
+}
+
+struct OverviewWidget: Widget {
+    let kind = "InsightOverview"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            OverviewWidgetView(entry: entry).containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Overview")
+        .description("The key Bitcoin stats at a glance.")
+        .supportedFamilies([.systemLarge])
     }
 }
 

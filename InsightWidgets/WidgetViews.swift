@@ -39,7 +39,7 @@ struct BrandLogo: View {
 }
 
 /// Small, tracked, uppercase caption used as the header on home widgets.
-private struct HomeLabel: View {
+struct HomeLabel: View {
     let text: String
     init(_ text: String) { self.text = text }
     var body: some View {
@@ -52,7 +52,7 @@ private struct HomeLabel: View {
 }
 
 /// Stacked label → value (→ optional sub) block. The home widgets' only unit.
-private struct StatBlock: View {
+struct StatBlock: View {
     let label: String
     let value: String
     var sub: String? = nil
@@ -71,7 +71,7 @@ private struct StatBlock: View {
 }
 
 /// Big rounded value, the focal number on a home widget.
-private struct BigValue: View {
+struct BigValue: View {
     let text: String
     var size: CGFloat = 30
     var body: some View {
@@ -81,7 +81,7 @@ private struct BigValue: View {
     }
 }
 
-private struct StaleDot: View {
+struct StaleDot: View {
     let stale: Bool
     var body: some View {
         if stale { Image(systemName: "wifi.slash").font(.caption2).foregroundStyle(.secondary) }
@@ -107,7 +107,7 @@ struct LockedView: View {
 }
 
 /// Gates every widget on premium + data.
-private struct WidgetGate<Content: View>: View {
+struct WidgetGate<Content: View>: View {
     let family: WidgetFamily
     let entry: StatsEntry
     @ViewBuilder var content: (NetworkSnapshot) -> Content
