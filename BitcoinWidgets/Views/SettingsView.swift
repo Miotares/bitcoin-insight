@@ -142,35 +142,6 @@ struct SettingsView: View {
                             }
                         }
 
-                        // MARK: - Node
-                        SettingsSection(title: "Node") {
-                            NavigationLink {
-                                ZStack {
-                                    AnimatedBackgroundView()
-                                    VStack(spacing: 12) {
-                                        Image(systemName: "server.rack")
-                                            .font(.system(size: 44))
-                                            .foregroundStyle(.secondary)
-                                        Text("Custom Node coming soon")
-                                            .font(.headline)
-                                        Text("Connect your own mempool instance\nfor full privacy.")
-                                            .font(.subheadline)
-                                            .foregroundStyle(.secondary)
-                                            .multilineTextAlignment(.center)
-                                    }
-                                    .padding()
-                                }
-                                .navigationTitle("Node Connection")
-                            } label: {
-                                SettingsRow(
-                                    title: "Connect your Node",
-                                    value: "Coming Soon",
-                                    showChevron: true
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-
                         // MARK: - Support
                         SettingsSection(title: "Support") {
                             Button {
