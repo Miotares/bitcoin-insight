@@ -182,18 +182,11 @@ struct WalletTabView: View {
 
     private var balanceHeroCard: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            HStack(spacing: Theme.Spacing.sm) {
-                Image(systemName: "bitcoinsign.circle.fill")
-                    .font(.title)
-                    .foregroundStyle(Theme.Accent.brand)
-                Text("Total Balance")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-            }
+            SectionLabel("Total Balance")
 
             Text(Formatters.formatBTC(totalBTC))
                 .font(.heroValue)
-                .minimumScaleFactor(0.6)
+                .minimumScaleFactor(0.5)
                 .lineLimit(1)
                 .contentTransition(.numericText())
                 .animation(.snappy, value: totalBTC)
@@ -225,7 +218,6 @@ struct WalletTabView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card(padding: Theme.Spacing.xxl)
         .padding(.horizontal)
     }
 

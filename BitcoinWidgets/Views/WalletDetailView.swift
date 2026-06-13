@@ -169,7 +169,7 @@ struct WalletDetailView: View {
                         }
                     }
                     .padding(4)
-                    .background(Material.ultraThin)
+                    .background(Theme.Surface.fill)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .padding(.horizontal)
 

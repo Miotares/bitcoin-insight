@@ -36,7 +36,7 @@ struct MempoolDetailView: View {
                                 .tracking(2)
                             
                             Text(Formatters.formatAmount(mempool.count))
-                                .font(.system(size: 52, weight: .heavy, design: .rounded))
+                                .font(.system(size: 52, weight: .bold, design: .rounded))
                                 .foregroundStyle(.primary)
                                 .contentTransition(.numericText())
                                 .animation(.snappy, value: mempool.count)

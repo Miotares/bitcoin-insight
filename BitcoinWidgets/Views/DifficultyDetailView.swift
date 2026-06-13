@@ -32,7 +32,7 @@ struct DifficultyDetailView: View {
                             
                             // Estimated Change
                             Text(Formatters.formatPercent(data.difficultyChange))
-                                .font(.system(size: 52, weight: .heavy, design: .rounded))
+                                .font(.system(size: 52, weight: .bold, design: .rounded))
                                 .foregroundStyle(data.difficultyChange >= 0 ? .green : .red)
                                 .contentTransition(.numericText())
                                 .animation(.snappy, value: data.difficultyChange)

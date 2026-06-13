@@ -28,7 +28,7 @@ struct CirculatingSupplyDetailView: View {
                             .tracking(2)
                         
                         Text(Formatters.formatAmount(Int(circulatingSupply)))
-                            .font(.system(size: 52, weight: .heavy, design: .rounded))
+                            .font(.system(size: 52, weight: .bold, design: .rounded))
                             .foregroundStyle(.primary)
                             .contentTransition(.numericText())
                             .animation(.snappy, value: circulatingSupply)

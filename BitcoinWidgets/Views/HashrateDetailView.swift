@@ -39,7 +39,7 @@ struct HashrateDetailView: View {
                                 .tracking(2)
                             
                             Text(Formatters.formatHashrate(hashrate.currentHashrate))
-                                .font(.system(size: 42, weight: .heavy, design: .rounded))
+                                .font(.system(size: 42, weight: .bold, design: .rounded))
                                 .foregroundStyle(.primary)
                                 .contentTransition(.numericText())
                                 .animation(.snappy, value: hashrate.currentHashrate)

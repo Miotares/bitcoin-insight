@@ -39,7 +39,7 @@ struct LightningDetailView: View {
                                 .tracking(2)
                             
                             Text(Formatters.formatLightningBTC(Double(stats.latest.total_capacity) / 100_000_000.0))
-                                .font(.system(size: 42, weight: .heavy, design: .rounded))
+                                .font(.system(size: 42, weight: .bold, design: .rounded))
                                 .foregroundStyle(.primary)
                                 .contentTransition(.numericText())
                                 .animation(.snappy, value: stats.latest.total_capacity)

@@ -148,7 +148,7 @@ struct BlockHeightDetailView: View {
                                 .tracking(2)
                             
                             Text("\(block.height)")
-                                .font(.system(size: 52, weight: .heavy, design: .rounded))
+                                .font(.system(size: 52, weight: .bold, design: .rounded))
                                 .foregroundStyle(.primary)
                                 .contentTransition(.numericText())
                                 .animation(.snappy, value: block.height)
