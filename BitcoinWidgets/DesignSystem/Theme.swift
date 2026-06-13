@@ -30,31 +30,28 @@ enum Theme {
         static let chip: CGFloat = 12
     }
 
-    // MARK: - Accent Colors (hybrid strategy)
+    // MARK: - Accent Colors (curated)
     //
-    // Color is used only where it carries meaning. Icons default to a muted
-    // tone; semantic green/red are reserved for direction and fee tiers;
-    // bitcoinOrange is the single brand accent.
+    // One brand accent (bitcoin orange) plus semantic green/red for direction
+    // and fee tiers. Everything else is neutral — no rainbow.
 
     enum Accent {
         static let brand = Color.bitcoinOrange
-        static let icon = Color.secondary       // muted icon tint (unused by default)
+        static let icon = Color.secondary       // neutral tint for any retained icon
         static let up = Color.green
         static let down = Color.red
         static let feeLow = Color.green
         static let feeMid = Color.orange
         static let feeHigh = Color.red
+    }
 
-        // Per-stat icon hues (colorful icon style)
-        static let blockHeight = Color.blue
-        static let mempool = Color.purple
-        static let difficulty = Color.green
-        static let hashrate = Color.cyan
-        static let networkFees = Color.green
-        static let feeDistribution = Color.purple
-        static let moscowTime = Color.red
-        static let circulatingSupply = Color.blue
-        static let lightning = Color.yellow
+    // MARK: - Flat surfaces
+
+    enum Surface {
+        /// Subtle grouped surface — flat, no glass, no shadow, no border.
+        static let fill = Color.white.opacity(0.05)
+        /// Hairline for editorial, box-less section separation.
+        static let divider = Color.white.opacity(0.08)
     }
 
     // MARK: - Strokes / Borders

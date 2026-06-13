@@ -17,7 +17,7 @@ struct DifficultyDetailView: View {
 
     var body: some View {
         ZStack {
-            AnimatedBackgroundView(accentColor: .green)
+            AnimatedBackgroundView()
             
             ScrollView {
                 VStack(spacing: 24) {

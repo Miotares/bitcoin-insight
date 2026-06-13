@@ -25,7 +25,7 @@ struct HashrateDetailView: View {
 
     var body: some View {
         ZStack {
-            AnimatedBackgroundView(accentColor: .cyan)
+            AnimatedBackgroundView()
             
             ScrollView {
                 VStack(spacing: 24) {

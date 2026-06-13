@@ -9,24 +9,15 @@
 
 import SwiftUI
 
-/// The translucent card surface only — background, rounded clip, hairline
-/// edge and the subtle shadow. No padding, so callers that manage their own
-/// padding / fixed height (e.g. the grid stat cards) can apply this directly.
+/// Flat grouped surface — a subtle fill with a soft rounded clip. No glass,
+/// no shadow, no border, so content reads cleanly without looking "boxy".
+/// No padding, so callers that manage their own padding / fixed height
+/// (e.g. the grid stat tiles) can apply this directly.
 struct CardSurfaceModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(Material.ultraThin)
+            .background(Theme.Surface.fill)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                    .strokeBorder(Theme.Stroke.hairline, lineWidth: 0.5)
-            )
-            .shadow(
-                color: Theme.Shadow.cardColor,
-                radius: Theme.Shadow.cardRadius,
-                x: 0,
-                y: Theme.Shadow.cardY
-            )
     }
 }
 

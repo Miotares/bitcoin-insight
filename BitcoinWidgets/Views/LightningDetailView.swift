@@ -25,7 +25,7 @@ struct LightningDetailView: View {
 
     var body: some View {
         ZStack {
-            AnimatedBackgroundView(accentColor: .yellow)
+            AnimatedBackgroundView()
             
             ScrollView {
                 VStack(spacing: 24) {

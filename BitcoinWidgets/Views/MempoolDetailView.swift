@@ -22,7 +22,7 @@ struct MempoolDetailView: View {
 
     var body: some View {
         ZStack {
-            AnimatedBackgroundView(accentColor: .purple)
+            AnimatedBackgroundView()
             
             ScrollView {
                 VStack(spacing: 24) {

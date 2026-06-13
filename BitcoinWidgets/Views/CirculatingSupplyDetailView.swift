@@ -15,7 +15,7 @@ struct CirculatingSupplyDetailView: View {
     
     var body: some View {
         ZStack {
-            AnimatedBackgroundView(accentColor: .blue)
+            AnimatedBackgroundView()
             
             ScrollView {
                 VStack(spacing: 24) {

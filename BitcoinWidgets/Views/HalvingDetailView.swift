@@ -76,7 +76,7 @@ struct HalvingDetailView: View {
     
     var body: some View {
         ZStack {
-            AnimatedBackgroundView(accentColor: .orange)
+            AnimatedBackgroundView()
             
             ScrollView {
                 VStack(spacing: 24) {

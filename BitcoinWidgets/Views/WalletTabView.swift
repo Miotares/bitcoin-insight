@@ -348,13 +348,13 @@ struct WalletCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.xl)
-        .background(Material.ultraThin)
+        .background(Theme.Surface.fill)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                .strokeBorder(isNeutral ? Theme.Stroke.hairline : walletColor.opacity(0.3),
-                              lineWidth: isNeutral ? 0.5 : 1)
-        )
-        .shadow(color: Theme.Shadow.cardColor, radius: Theme.Shadow.cardRadius, x: 0, y: Theme.Shadow.cardY)
+        .overlay {
+            if !isNeutral {
+                RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                    .strokeBorder(walletColor.opacity(0.4), lineWidth: 1)
+            }
+        }
     }
 }
