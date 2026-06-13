@@ -51,12 +51,12 @@ struct MoscowWidgetView: View {
 // MARK: - Fees
 
 private struct FeeLine: View {
-    let name: String, value: Int
+    let name: String, value: Int, color: Color
     var body: some View {
         HStack {
             Text(name).foregroundStyle(.secondary)
             Spacer()
-            Text("\(value)").fontWeight(.semibold)
+            Text("\(value)").fontWeight(.semibold).foregroundStyle(color)
             Text("sat/vB").font(.caption2).foregroundStyle(.tertiary)
         }.font(.caption)
     }
@@ -76,9 +76,9 @@ struct FeesWidgetView: View {
             default:
                 VStack(alignment: .leading, spacing: 8) {
                     HomeLabel("Fees")
-                    FeeLine(name: "High", value: s.feeHigh)
-                    FeeLine(name: "Medium", value: s.feeMedium)
-                    FeeLine(name: "Low", value: s.feeLow)
+                    FeeLine(name: "High", value: s.feeHigh, color: .red)
+                    FeeLine(name: "Medium", value: s.feeMedium, color: .orange)
+                    FeeLine(name: "Low", value: s.feeLow, color: .green)
                 }
             }
         }

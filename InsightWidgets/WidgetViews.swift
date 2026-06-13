@@ -44,8 +44,8 @@ struct HomeLabel: View {
     init(_ text: String) { self.text = text }
     var body: some View {
         Text(text.uppercased())
-            .font(.caption2).fontWeight(.semibold)
-            .tracking(0.6)
+            .font(.caption).fontWeight(.semibold)
+            .tracking(0.8)
             .foregroundStyle(.secondary)
             .lineLimit(1)
     }
@@ -76,7 +76,7 @@ struct BigValue: View {
     var size: CGFloat = 30
     var body: some View {
         Text(text)
-            .font(.system(size: size, weight: .semibold, design: .rounded))
+            .font(.system(size: size, weight: .bold, design: .rounded))
             .minimumScaleFactor(0.4).lineLimit(1)
     }
 }
