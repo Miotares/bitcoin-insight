@@ -15,7 +15,6 @@ struct WalletDetailView: View {
     @State private var showDeleteAlert = false
     @State private var showRenameAlert = false
     @State private var renameText = ""
-    @State private var showColorPicker = false
     @State private var copiedTxID: String? = nil
     @State private var copiedAddress: String? = nil
     @State private var txCopyTask: Task<Void, Never>? = nil
@@ -23,27 +22,12 @@ struct WalletDetailView: View {
     @State private var txDisplayLimit: Int = 25
     @State private var addrDisplayLimit: Int = 25
 
-    private static let colorPalette = [
-        "#8E8E93", // neutral gray (default)
-        "#F79326", // bitcoin orange
-        "#3B82F6", // blue
-        "#10B981", // green
-        "#8B5CF6", // purple
-        "#EF4444", // red
-        "#F59E0B", // amber
-        "#EC4899", // pink
-        "#06B6D4", // cyan
-        "#84CC16", // lime
-    ]
-
     /// Always reflects the latest state from the view model.
     private var currentWallet: Wallet {
         viewModel.wallets.first { $0.id == wallet.id } ?? wallet
     }
 
-    private var isNeutral: Bool { currentWallet.colorHex == WalletViewModel.neutralColorHex }
     private var btcBalance: Double { Double(currentWallet.totalBalanceSats) / 100_000_000.0 }
-    private var walletColor: Color { Color(hex: currentWallet.colorHex) }
 
     private var fiatValue: Double {
         guard viewModel.totalBalanceSats > 0, viewModel.totalBalanceFiat > 0 else { return 0 }
@@ -53,7 +37,7 @@ struct WalletDetailView: View {
 
     var body: some View {
         ZStack {
-            AnimatedBackgroundView(accentColor: isNeutral ? nil : walletColor)
+            AnimatedBackgroundView()
 
             ScrollView {
                 VStack(spacing: 20) {
@@ -87,11 +71,6 @@ struct WalletDetailView: View {
                     // MARK: - Balance Card
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 8) {
-                            if !isNeutral {
-                                Circle()
-                                    .fill(walletColor)
-                                    .frame(width: 12, height: 12)
-                            }
                             Text(currentWallet.type.displayName)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -201,12 +180,6 @@ struct WalletDetailView: View {
                     }
                     Menu {
                         Button {
-                            showColorPicker = true
-                        } label: {
-                            Label("Change Color", systemImage: "paintpalette")
-                        }
-
-                        Button {
                             renameText = currentWallet.name
                             showRenameAlert = true
                         } label: {
@@ -243,57 +216,6 @@ struct WalletDetailView: View {
                 viewModel.renameWallet(currentWallet, newName: renameText)
             }
             Button("Cancel", role: .cancel) {}
-        }
-        .sheet(isPresented: $showColorPicker) {
-            colorPickerSheet
-        }
-    }
-
-    // MARK: - Color Picker Sheet
-
-    private var colorPickerSheet: some View {
-        NavigationStack {
-            VStack(spacing: 32) {
-                Text("Pick a color to identify this wallet")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 24) {
-                    ForEach(Self.colorPalette, id: \.self) { hex in
-                        Button {
-                            viewModel.changeColor(currentWallet, colorHex: hex)
-                            Haptics.selection()
-                            showColorPicker = false
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(hex: hex))
-                                    .frame(width: 54, height: 54)
-                                if currentWallet.colorHex.lowercased() == hex.lowercased() {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 18, weight: .bold))
-                                        .foregroundStyle(.white)
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 32)
-
-                Spacer()
-            }
-            .padding(.top, 32)
-            .navigationTitle("Wallet Color")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { showColorPicker = false }
-                        .foregroundStyle(.secondary)
-                }
-            }
         }
     }
 

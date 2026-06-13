@@ -649,16 +649,11 @@ class WalletViewModel: ObservableObject {
         return false
     }
 
-    // MARK: - Color
+    // MARK: - Color (retained only for stored-wallet compatibility)
 
-    /// Neutral default — no accent border, no color dot on the card.
+    /// Default colour written to new wallets. The colour UI was removed, but the
+    /// `colorHex` field stays in the model so existing saved wallets still decode.
     static let neutralColorHex = "#8E8E93"
-
-    func changeColor(_ wallet: Wallet, colorHex: String) {
-        var updated = WalletManager.shared.wallets.first(where: { $0.id == wallet.id }) ?? wallet
-        updated.colorHex = colorHex
-        WalletManager.shared.updateWallet(updated)
-    }
 
     // MARK: - Order
 

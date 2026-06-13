@@ -266,8 +266,6 @@ struct WalletCard: View {
     let currency: String
 
     private var btcBalance: Double { Double(wallet.totalBalanceSats) / 100_000_000.0 }
-    private var walletColor: Color { Color(hex: wallet.colorHex) }
-    private var isNeutral: Bool { wallet.colorHex == WalletViewModel.neutralColorHex }
     private var fiatValue: Double {
         guard viewModel.totalBalanceSats > 0, viewModel.totalBalanceFiat > 0 else { return 0 }
         let totalBTC = Double(viewModel.totalBalanceSats) / 100_000_000.0
@@ -279,11 +277,6 @@ struct WalletCard: View {
             // Header
             HStack {
                 HStack(spacing: 8) {
-                    if !isNeutral {
-                        Circle()
-                            .fill(walletColor)
-                            .frame(width: 10, height: 10)
-                    }
                     Text(wallet.name)
                         .font(.headline)
                         .lineLimit(1)
@@ -342,11 +335,5 @@ struct WalletCard: View {
         .padding(Theme.Spacing.xl)
         .background(Theme.Surface.fill)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-        .overlay {
-            if !isNeutral {
-                RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                    .strokeBorder(walletColor.opacity(0.4), lineWidth: 1)
-            }
-        }
     }
 }
