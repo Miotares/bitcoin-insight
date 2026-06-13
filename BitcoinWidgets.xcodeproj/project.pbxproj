@@ -8,13 +8,62 @@
 
 /* Begin PBXBuildFile section */
 		D73ED1552F4BB4DB00518EE4 /* P256K in Frameworks */ = {isa = PBXBuildFile; productRef = D73ED1542F4BB4DB00518EE4 /* P256K */; };
+		D7CCC7EB2FDD7AD100F967F5 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7CCC7EA2FDD7AD100F967F5 /* WidgetKit.framework */; };
+		D7CCC7ED2FDD7AD100F967F5 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7CCC7EC2FDD7AD100F967F5 /* SwiftUI.framework */; };
+		D7CCC7FE2FDD7AD300F967F5 /* InsightWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D7CCC7E82FDD7AD100F967F5 /* InsightWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		D7CCC7FC2FDD7AD300F967F5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D7D59E3B2E917CD000E985CF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D7CCC7E72FDD7AD100F967F5;
+			remoteInfo = InsightWidgetsExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		D7CCC8032FDD7AD300F967F5 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D7CCC7FE2FDD7AD300F967F5 /* InsightWidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		D7CCC7E82FDD7AD100F967F5 /* InsightWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = InsightWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D7CCC7EA2FDD7AD100F967F5 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		D7CCC7EC2FDD7AD100F967F5 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		D7CCC8052FDD7B4300F967F5 /* InsightWidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = InsightWidgetsExtension.entitlements; sourceTree = "<group>"; };
 		D7D59E432E917CD000E985CF /* BitcoinWidgets.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BitcoinWidgets.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D7CCC7FF2FDD7AD300F967F5 /* Exceptions for "InsightWidgets" folder in "InsightWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D7CCC7E72FDD7AD100F967F5 /* InsightWidgetsExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		D7CCC7EE2FDD7AD100F967F5 /* InsightWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D7CCC7FF2FDD7AD300F967F5 /* Exceptions for "InsightWidgets" folder in "InsightWidgetsExtension" target */,
+			);
+			path = InsightWidgets;
+			sourceTree = "<group>";
+		};
 		D7D59E452E917CD000E985CF /* BitcoinWidgets */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = BitcoinWidgets;
@@ -23,6 +72,15 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		D7CCC7E52FDD7AD100F967F5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D7CCC7ED2FDD7AD100F967F5 /* SwiftUI.framework in Frameworks */,
+				D7CCC7EB2FDD7AD100F967F5 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D7D59E402E917CD000E985CF /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -34,10 +92,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		D7CCC7E92FDD7AD100F967F5 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D7CCC7EA2FDD7AD100F967F5 /* WidgetKit.framework */,
+				D7CCC7EC2FDD7AD100F967F5 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		D7D59E3A2E917CD000E985CF = {
 			isa = PBXGroup;
 			children = (
+				D7CCC8052FDD7B4300F967F5 /* InsightWidgetsExtension.entitlements */,
 				D7D59E452E917CD000E985CF /* BitcoinWidgets */,
+				D7CCC7EE2FDD7AD100F967F5 /* InsightWidgets */,
+				D7CCC7E92FDD7AD100F967F5 /* Frameworks */,
 				D7D59E442E917CD000E985CF /* Products */,
 			);
 			sourceTree = "<group>";
@@ -46,6 +116,7 @@
 			isa = PBXGroup;
 			children = (
 				D7D59E432E917CD000E985CF /* BitcoinWidgets.app */,
+				D7CCC7E82FDD7AD100F967F5 /* InsightWidgetsExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -53,6 +124,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		D7CCC7E72FDD7AD100F967F5 /* InsightWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D7CCC8002FDD7AD300F967F5 /* Build configuration list for PBXNativeTarget "InsightWidgetsExtension" */;
+			buildPhases = (
+				D7CCC7E42FDD7AD100F967F5 /* Sources */,
+				D7CCC7E52FDD7AD100F967F5 /* Frameworks */,
+				D7CCC7E62FDD7AD100F967F5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D7CCC7EE2FDD7AD100F967F5 /* InsightWidgets */,
+			);
+			name = InsightWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = InsightWidgetsExtension;
+			productReference = D7CCC7E82FDD7AD100F967F5 /* InsightWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		D7D59E422E917CD000E985CF /* BitcoinWidgets */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = D7D59E4E2E917CD200E985CF /* Build configuration list for PBXNativeTarget "BitcoinWidgets" */;
@@ -60,10 +153,12 @@
 				D7D59E3F2E917CD000E985CF /* Sources */,
 				D7D59E402E917CD000E985CF /* Frameworks */,
 				D7D59E412E917CD000E985CF /* Resources */,
+				D7CCC8032FDD7AD300F967F5 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D7CCC7FD2FDD7AD300F967F5 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				D7D59E452E917CD000E985CF /* BitcoinWidgets */,
@@ -83,9 +178,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2600;
+				LastSwiftUpdateCheck = 2650;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
+					D7CCC7E72FDD7AD100F967F5 = {
+						CreatedOnToolsVersion = 26.5;
+					};
 					D7D59E422E917CD000E985CF = {
 						CreatedOnToolsVersion = 26.0.1;
 					};
@@ -109,11 +207,19 @@
 			projectRoot = "";
 			targets = (
 				D7D59E422E917CD000E985CF /* BitcoinWidgets */,
+				D7CCC7E72FDD7AD100F967F5 /* InsightWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		D7CCC7E62FDD7AD100F967F5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D7D59E412E917CD000E985CF /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -124,6 +230,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		D7CCC7E42FDD7AD100F967F5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D7D59E3F2E917CD000E985CF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -133,7 +246,79 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		D7CCC7FD2FDD7AD300F967F5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D7CCC7E72FDD7AD100F967F5 /* InsightWidgetsExtension */;
+			targetProxy = D7CCC7FC2FDD7AD300F967F5 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		D7CCC8012FDD7AD300F967F5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = InsightWidgetsExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QS5H87MR36;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = InsightWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = InsightWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = miotares.BitcoinWidgets.InsightWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D7CCC8022FDD7AD300F967F5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = InsightWidgetsExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QS5H87MR36;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = InsightWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = InsightWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = miotares.BitcoinWidgets.InsightWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		D7D59E4C2E917CD200E985CF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -258,6 +443,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = BitcoinWidgets/BitcoinWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2.0;
 				DEVELOPMENT_TEAM = QS5H87MR36;
@@ -293,6 +479,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = BitcoinWidgets/BitcoinWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2.0;
 				DEVELOPMENT_TEAM = QS5H87MR36;
@@ -326,6 +513,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		D7CCC8002FDD7AD300F967F5 /* Build configuration list for PBXNativeTarget "InsightWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D7CCC8012FDD7AD300F967F5 /* Debug */,
+				D7CCC8022FDD7AD300F967F5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		D7D59E3E2E917CD000E985CF /* Build configuration list for PBXProject "BitcoinWidgets" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
