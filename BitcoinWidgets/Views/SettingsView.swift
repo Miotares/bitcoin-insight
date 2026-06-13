@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import StoreKit
 
 struct SettingsView: View {
     @EnvironmentObject var settings: SettingsManager
+    @EnvironmentObject var store: StoreManager
     @Environment(\.openURL) private var openURL
+    @State private var showPaywall = false
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–"
@@ -22,6 +25,31 @@ struct SettingsView: View {
 
                 ScrollView {
                     VStack(spacing: 28) {
+
+                        // MARK: - Premium
+                        SettingsSection(title: "Premium") {
+                            if store.hasPremium {
+                                SettingsRow(title: "Widgets Unlocked", value: "✓")
+                                Divider().padding(.leading, 16)
+                                Button {
+                                    Task { await store.restore() }
+                                } label: {
+                                    SettingsRow(title: "Restore Purchases", showChevron: true)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                Button {
+                                    showPaywall = true
+                                } label: {
+                                    SettingsRow(
+                                        title: "Unlock Widgets",
+                                        value: store.product?.displayPrice,
+                                        showChevron: true
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
 
                         // MARK: - Preferences
                         SettingsSection(title: "Preferences") {
@@ -74,8 +102,8 @@ struct SettingsView: View {
                         #if DEBUG
                         // MARK: - Developer (dev builds only)
                         SettingsSection(title: "Developer") {
-                            SettingsRow(title: "Widgets Premium (Dev)") {
-                                Toggle("", isOn: $settings.widgetsPremiumDev)
+                            SettingsRow(title: "Force Premium (Dev)") {
+                                Toggle("", isOn: $store.debugForceUnlock)
                                     .labelsHidden()
                                     .tint(Color.bitcoinOrange)
                             }
@@ -146,6 +174,9 @@ struct SettingsView: View {
                 }
                 .scrollContentBackground(.hidden)
                 .navigationTitle("Settings")
+                .sheet(isPresented: $showPaywall) {
+                    PaywallView()
+                }
             }
         }
     }

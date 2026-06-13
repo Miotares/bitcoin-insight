@@ -1,0 +1,32 @@
+{
+  "identifier" : "BITCOININSIGHT",
+  "nonRenewingSubscriptions" : [],
+  "products" : [
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "1",
+      "localizations" : [
+        {
+          "description" : "Unlock all home and lock screen widgets, forever.",
+          "displayName" : "Widgets Lifetime",
+          "locale" : "de_DE"
+        }
+      ],
+      "productID" : "miotares.BitcoinWidgets.widgets.lifetime",
+      "referenceName" : "Widgets Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "de_DE",
+    "_storefront" : "DEU",
+    "_storeKitErrors" : []
+  },
+  "subscriptionGroups" : [],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

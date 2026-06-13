@@ -91,6 +91,11 @@ struct StaleDot: View {
 struct LockedView: View {
     let family: WidgetFamily
     var body: some View {
+        // Tapping a locked widget opens the app's paywall.
+        content.widgetURL(URL(string: "bitcoininsight://paywall"))
+    }
+
+    @ViewBuilder private var content: some View {
         switch family {
         case .accessoryInline:      Label("Premium", systemImage: "lock.fill")
         case .accessoryCircular:    Image(systemName: "lock.fill")

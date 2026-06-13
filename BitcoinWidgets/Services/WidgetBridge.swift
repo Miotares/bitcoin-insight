@@ -2,8 +2,8 @@
 //  WidgetBridge.swift
 //  BitcoinWidgets
 //
-//  App-side writer for the App Group that the widgets read. Mirrors the
-//  preferred currency and the premium flag, then asks WidgetKit to reload.
+//  App-side writer for the App Group the widgets read. Currency is mirrored by
+//  SettingsManager; the premium flag by StoreManager. Each write reloads widgets.
 //
 //  NOTE: suiteName + keys must stay identical to AppGroupStore in the
 //  InsightWidgets target.
@@ -20,10 +20,14 @@ enum WidgetBridge {
         static let preferredCurrency = "widget.preferredCurrency"
     }
 
-    /// Writes the current state into the shared container and reloads widgets.
-    static func sync(currency: String, isPremium: Bool) {
-        let defaults = UserDefaults(suiteName: suiteName)
+    private static var defaults: UserDefaults? { UserDefaults(suiteName: suiteName) }
+
+    static func setCurrency(_ currency: String) {
         defaults?.set(currency, forKey: Key.preferredCurrency)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    static func setPremium(_ isPremium: Bool) {
         defaults?.set(isPremium, forKey: Key.isPremium)
         WidgetCenter.shared.reloadAllTimelines()
     }
