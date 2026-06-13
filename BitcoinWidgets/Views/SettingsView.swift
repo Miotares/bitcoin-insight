@@ -18,6 +18,67 @@ struct SettingsView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–"
     }
 
+    // MARK: - Premium promo
+
+    private var premiumPromoBanner: some View {
+        Button {
+            showPaywall = true
+        } label: {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                HStack {
+                    Text("PREMIUM")
+                        .font(.caption).fontWeight(.semibold).tracking(0.8)
+                        .foregroundStyle(Theme.Accent.brand)
+                    Spacer()
+                    if let price = store.product?.displayPrice {
+                        Text("\(price) · one-time").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Text("Unlock all widgets")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                Text("13 Home- & Lock-screen widgets — live price, fees, block height, halving and more.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    Text("Unlock Premium").fontWeight(.semibold)
+                    Image(systemName: "arrow.right")
+                }
+                .font(.subheadline)
+                .foregroundStyle(Theme.Accent.brand)
+                .padding(.top, 2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Theme.Spacing.xl)
+            .background(Theme.Accent.brand.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                    .strokeBorder(Theme.Accent.brand.opacity(0.35), lineWidth: 1)
+            )
+        }
+        .buttonStyle(CardButtonStyle())
+        .padding(.horizontal)
+    }
+
+    private var premiumUnlockedCard: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.title2)
+                .foregroundStyle(Theme.Accent.brand)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Premium unlocked").font(.subheadline).fontWeight(.semibold)
+                Text("Thanks for your support.").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Restore") { Task { await store.restore() } }
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .padding(.horizontal)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -27,28 +88,10 @@ struct SettingsView: View {
                     VStack(spacing: 28) {
 
                         // MARK: - Premium
-                        SettingsSection(title: "Premium") {
-                            if store.hasPremium {
-                                SettingsRow(title: "Widgets Unlocked", value: "✓")
-                                Divider().padding(.leading, 16)
-                                Button {
-                                    Task { await store.restore() }
-                                } label: {
-                                    SettingsRow(title: "Restore Purchases", showChevron: true)
-                                }
-                                .buttonStyle(.plain)
-                            } else {
-                                Button {
-                                    showPaywall = true
-                                } label: {
-                                    SettingsRow(
-                                        title: "Unlock Widgets",
-                                        value: store.product?.displayPrice,
-                                        showChevron: true
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
+                        if store.hasPremium {
+                            premiumUnlockedCard
+                        } else {
+                            premiumPromoBanner
                         }
 
                         // MARK: - Preferences
@@ -98,17 +141,6 @@ struct SettingsView: View {
                                     .tint(Color.bitcoinOrange)
                             }
                         }
-
-                        #if DEBUG
-                        // MARK: - Developer (dev builds only)
-                        SettingsSection(title: "Developer") {
-                            SettingsRow(title: "Force Premium (Dev)") {
-                                Toggle("", isOn: $store.debugForceUnlock)
-                                    .labelsHidden()
-                                    .tint(Color.bitcoinOrange)
-                            }
-                        }
-                        #endif
 
                         // MARK: - Node
                         SettingsSection(title: "Node") {

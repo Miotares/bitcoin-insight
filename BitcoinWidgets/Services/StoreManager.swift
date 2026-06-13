@@ -19,24 +19,8 @@ final class StoreManager: ObservableObject {
     @Published private(set) var isPremium = false
     @Published var purchaseError: String?
 
-    #if DEBUG
-    /// Dev-only override so the unlocked state can be tested without a purchase.
-    @Published var debugForceUnlock: Bool = UserDefaults.standard.bool(forKey: "debugForceUnlock") {
-        didSet {
-            UserDefaults.standard.set(debugForceUnlock, forKey: "debugForceUnlock")
-            pushEntitlement()
-        }
-    }
-    #endif
-
-    /// Effective premium that gates the feature and drives the widgets.
-    var hasPremium: Bool {
-        #if DEBUG
-        return isPremium || debugForceUnlock
-        #else
-        return isPremium
-        #endif
-    }
+    /// Whether the premium feature (the widgets) is unlocked.
+    var hasPremium: Bool { isPremium }
 
     private var updatesTask: Task<Void, Never>?
 
