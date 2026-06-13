@@ -37,7 +37,8 @@ struct DashboardView: View {
                                 title: "Mempool",
                                 value: Formatters.formatAmount(viewModel.mempoolTransactions),
                                 subtitle: "txs",
-                                icon: "list.bullet.rectangle.fill"
+                                icon: "list.bullet.rectangle.fill",
+                                color: Theme.Accent.mempool
                             ) {
                                 MempoolDetailView()
                             }
@@ -45,7 +46,8 @@ struct DashboardView: View {
                             StatCard(
                                 title: "Difficulty",
                                 value: Formatters.formatDifficulty(viewModel.difficulty),
-                                icon: "chart.line.uptrend.xyaxis"
+                                icon: "chart.line.uptrend.xyaxis",
+                                color: Theme.Accent.difficulty
                             ) {
                                 DifficultyDetailView()
                             }
@@ -53,7 +55,8 @@ struct DashboardView: View {
                             StatCard(
                                 title: "Hashrate",
                                 value: Formatters.formatHashrate(viewModel.hashrate),
-                                icon: "cpu"
+                                icon: "cpu",
+                                color: Theme.Accent.hashrate
                             ) {
                                 HashrateDetailView()
                             }
@@ -195,6 +198,7 @@ struct StatCard<Destination: View>: View {
     let value: String
     var subtitle: String? = nil
     let icon: String
+    let color: Color
     let destination: () -> Destination
 
     var body: some View {
@@ -202,7 +206,7 @@ struct StatCard<Destination: View>: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                 HStack {
                     Image(systemName: icon)
-                        .foregroundStyle(Theme.Accent.icon)
+                        .foregroundStyle(color)
                         .font(.title3)
                     Spacer()
                     Image(systemName: "chevron.right")
@@ -261,7 +265,7 @@ struct BlockHeightStatCard<Destination: View>: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                 HStack {
                     Image(systemName: "cube.fill")
-                        .foregroundStyle(Theme.Accent.icon)
+                        .foregroundStyle(Theme.Accent.blockHeight)
                         .font(.title3)
                     Spacer()
                     Image(systemName: "chevron.right")
@@ -329,7 +333,7 @@ struct FeeRowView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
             HStack {
                 Image(systemName: "banknote.fill")
-                    .foregroundStyle(Theme.Accent.icon)
+                    .foregroundStyle(Theme.Accent.networkFees)
                 Text("Network Fees")
                     .font(.sectionHeader)
             }
@@ -423,7 +427,7 @@ struct FeeDistributionWidget: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
             HStack {
                 Image(systemName: "chart.bar.fill")
-                    .foregroundStyle(Theme.Accent.icon)
+                    .foregroundStyle(Theme.Accent.feeDistribution)
                 Text("Fee Distribution")
                     .font(.sectionHeader)
                     .foregroundStyle(.primary)
@@ -496,7 +500,7 @@ struct MoscowTimeWidget: View {
     var body: some View {
         HStack {
             Image(systemName: "clock.fill")
-                .foregroundStyle(Theme.Accent.icon)
+                .foregroundStyle(Theme.Accent.moscowTime)
                 .font(.title2)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -536,7 +540,7 @@ struct CirculatingSupplyWidget: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
             HStack {
                 Image(systemName: "chart.pie.fill")
-                    .foregroundStyle(Theme.Accent.icon)
+                    .foregroundStyle(Theme.Accent.circulatingSupply)
                 Text("Circulating Supply")
                     .font(.sectionHeader)
                 Spacer()
@@ -623,7 +627,7 @@ struct LightningCard: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 HStack {
                     Image(systemName: "bolt.fill")
-                        .foregroundStyle(Theme.Accent.icon)
+                        .foregroundStyle(Theme.Accent.lightning)
                     Text("Lightning Network")
                         .font(.sectionHeader)
                     Spacer()

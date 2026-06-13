@@ -38,12 +38,23 @@ enum Theme {
 
     enum Accent {
         static let brand = Color.bitcoinOrange
-        static let icon = Color.secondary       // default monochrome icon tint
+        static let icon = Color.secondary       // muted icon tint (unused by default)
         static let up = Color.green
         static let down = Color.red
         static let feeLow = Color.green
         static let feeMid = Color.orange
         static let feeHigh = Color.red
+
+        // Per-stat icon hues (colorful icon style)
+        static let blockHeight = Color.blue
+        static let mempool = Color.purple
+        static let difficulty = Color.green
+        static let hashrate = Color.cyan
+        static let networkFees = Color.green
+        static let feeDistribution = Color.purple
+        static let moscowTime = Color.red
+        static let circulatingSupply = Color.blue
+        static let lightning = Color.yellow
     }
 
     // MARK: - Strokes / Borders
