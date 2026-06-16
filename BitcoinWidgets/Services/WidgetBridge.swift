@@ -22,6 +22,13 @@ enum WidgetBridge {
 
     private static var defaults: UserDefaults? { UserDefaults(suiteName: suiteName) }
 
+    /// The last mirrored premium state. The App Group container persists to disk
+    /// and survives app restarts, so this is the durable on-device source of
+    /// truth StoreManager seeds from at launch (see StoreManager.init).
+    static var isPremium: Bool {
+        defaults?.bool(forKey: Key.isPremium) ?? false
+    }
+
     static func setCurrency(_ currency: String) {
         defaults?.set(currency, forKey: Key.preferredCurrency)
         WidgetCenter.shared.reloadAllTimelines()

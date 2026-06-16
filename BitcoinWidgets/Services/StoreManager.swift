@@ -37,6 +37,15 @@ final class StoreManager: ObservableObject {
     private let log = Logger(subsystem: "miotares.BitcoinWidgets", category: "StoreKit")
 
     init() {
+        // Durable seed: the App Group flag is written on every entitlement change
+        // and persists across app restarts, so a previously-unlocked user starts
+        // UNLOCKED even when Transaction.currentEntitlements comes back empty at
+        // launch (offline, a StoreKit hiccup, or sandbox not surfacing the
+        // non-consumable). This is the fix for "premium resets after an app
+        // restart". refreshEntitlements() only ever RE-LOCKS on an explicit
+        // revocation, so seeding here can never unlock a user who never paid
+        // (the flag starts false and is only set true after a real purchase).
+        isPremium = WidgetBridge.isPremium
         updatesTask = listenForTransactions()
         Task {
             await loadProduct()
