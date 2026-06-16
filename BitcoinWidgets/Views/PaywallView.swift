@@ -78,6 +78,14 @@ struct PaywallView: View {
                         }
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+
+                        if let error = store.purchaseError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundStyle(Theme.Accent.down)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+                        }
                     }
                     .padding()
                 }

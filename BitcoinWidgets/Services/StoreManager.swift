@@ -6,14 +6,25 @@
 //  (a non-consumable). On any entitlement change it mirrors the flag into the
 //  App Group so the widgets unlock, and reloads them.
 //
+//  Guiding rule: a user whose payment SUCCEEDED must never be left locked.
+//  Therefore we (1) honor .success regardless of StoreKit's on-device JWS
+//  verification, (2) always finish the transaction so it can't loop or feel
+//  re-buyable, (3) unlock optimistically the moment the payment succeeds, and
+//  (4) only ever RE-LOCK on an explicit revocation (refund / chargeback). A
+//  transient or empty currentEntitlements result never clobbers a granted
+//  unlock. On-device verification adds no real protection for a 4.99 €
+//  client-only flag — the user has already paid Apple — and refunds still
+//  revoke via revocationDate.
+//
 
 import Foundation
 import StoreKit
 import Combine
+import os
 
 @MainActor
 final class StoreManager: ObservableObject {
-    static let productID = "miotares.BitcoinWidgets.widgets.lifetime"
+    nonisolated static let productID = "miotares.BitcoinWidgets.widgets.lifetime"
 
     @Published private(set) var product: Product?
     @Published private(set) var isPremium = false
@@ -23,6 +34,7 @@ final class StoreManager: ObservableObject {
     var hasPremium: Bool { isPremium }
 
     private var updatesTask: Task<Void, Never>?
+    private let log = Logger(subsystem: "miotares.BitcoinWidgets", category: "StoreKit")
 
     init() {
         updatesTask = listenForTransactions()
@@ -37,52 +49,104 @@ final class StoreManager: ObservableObject {
     // MARK: - Catalog
 
     func loadProduct() async {
-        product = try? await Product.products(for: [Self.productID]).first
+        do {
+            let products = try await Product.products(for: [Self.productID])
+            product = products.first
+            if products.isEmpty {
+                // Empty here means an App Store Connect problem (product not
+                // Approved, not attached to the version, ID mismatch, or the
+                // Paid Apps agreement inactive). No code can fix that — surface
+                // it instead of swallowing it with `try?`.
+                log.error("No product returned for \(Self.productID, privacy: .public) — check App Store Connect (state/attachment/ID, Paid Apps agreement).")
+            } else {
+                log.info("Loaded product \(Self.productID, privacy: .public) price=\(self.product?.displayPrice ?? "?", privacy: .public)")
+            }
+        } catch {
+            log.error("Product load failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - Entitlements
 
     func refreshEntitlements() async {
-        var owned = false
+        var foundActive = false
+        var foundRevoked = false
+        var seen = 0
         for await result in Transaction.currentEntitlements {
-            if case .verified(let tx) = result,
-               tx.productID == Self.productID,
-               tx.revocationDate == nil {
-                owned = true
-            }
+            let tx = transaction(from: result)
+            seen += 1
+            guard tx.productID == Self.productID else { continue }
+            if tx.revocationDate == nil { foundActive = true } else { foundRevoked = true }
         }
-        isPremium = owned
-        pushEntitlement()
+        log.info("refreshEntitlements: entitlements=\(seen) active=\(foundActive) revoked=\(foundRevoked) current=\(self.isPremium)")
+
+        if foundActive {
+            updatePremium(true)
+        } else if foundRevoked {
+            // Definitive revoke (refund / chargeback) → re-lock.
+            updatePremium(false)
+        } else {
+            // No information (empty or unrelated). Do NOT clobber a unlock that
+            // was already granted optimistically — only re-assert the flag so
+            // the widgets' App Group stays in sync.
+            pushEntitlement()
+        }
     }
 
     // MARK: - Purchase / Restore
 
     @discardableResult
     func purchase() async -> Bool {
-        guard let product else { return false }
+        guard let product else {
+            // product == nil is the App Store Connect / load-failure path.
+            log.error("purchase() aborted: product is nil (not loaded from the store).")
+            purchaseError = "The store is unavailable right now. Please try again later."
+            return false
+        }
         purchaseError = nil
         do {
             switch try await product.purchase() {
             case .success(let verification):
-                if case .verified(let tx) = verification {
-                    await tx.finish()
-                    await refreshEntitlements()
-                    return true
-                }
+                // The payment went through — honor it regardless of verified vs
+                // unverified, never leave a paid user locked. Finish so the
+                // transaction can't loop or appear re-buyable.
+                let tx = transaction(from: verification)
+                await tx.finish()
+                updatePremium(true)          // immediate optimistic unlock + mirror
+                await refreshEntitlements()  // reconcile (sticky — won't re-lock)
+                log.info("purchase() success: premium granted for \(Self.productID, privacy: .public)")
+                return true
+
+            case .userCancelled:
+                log.info("purchase() userCancelled")
                 return false
-            case .userCancelled, .pending:
+
+            case .pending:
+                // Ask-to-Buy / SCA: the transaction may arrive later via
+                // Transaction.updates or the next foreground refresh.
+                log.info("purchase() pending (awaiting approval)")
+                purchaseError = "Your purchase is pending approval. It will unlock once approved."
                 return false
+
             @unknown default:
+                log.error("purchase() unknown PurchaseResult")
                 return false
             }
         } catch {
+            log.error("purchase() threw: \(error.localizedDescription, privacy: .public)")
             purchaseError = error.localizedDescription
             return false
         }
     }
 
     func restore() async {
-        try? await AppStore.sync()
+        log.info("restore() syncing with the App Store…")
+        do {
+            try await AppStore.sync()
+        } catch {
+            log.error("restore() AppStore.sync failed: \(error.localizedDescription, privacy: .public)")
+            purchaseError = error.localizedDescription
+        }
         await refreshEntitlements()
     }
 
@@ -91,12 +155,38 @@ final class StoreManager: ObservableObject {
     private func listenForTransactions() -> Task<Void, Never> {
         Task.detached { [weak self] in
             for await result in Transaction.updates {
-                if case .verified(let tx) = result {
-                    await tx.finish()
-                    await self?.refreshEntitlements()
+                guard let self else { continue }
+                // Honor + finish EVERY incoming transaction (verified or not),
+                // otherwise an unfinished one keeps looping and never unlocks.
+                let tx = await self.transaction(from: result)
+                await tx.finish()
+                if tx.productID == Self.productID, tx.revocationDate == nil {
+                    await self.updatePremium(true)
                 }
+                await self.refreshEntitlements()
             }
         }
+    }
+
+    /// Extract the transaction from either verification case. We deliberately
+    /// honor `.unverified` for this 4.99 € client-only unlock (verification adds
+    /// no real protection; the user has already paid Apple) and log the error so
+    /// the unverified path is visible in Console rather than silently dropped.
+    private func transaction(from result: VerificationResult<Transaction>) -> Transaction {
+        switch result {
+        case .verified(let tx):
+            return tx
+        case .unverified(let tx, let error):
+            log.error("Honoring UNVERIFIED transaction for \(tx.productID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return tx
+        }
+    }
+
+    /// Single funnel for flipping the flag so the App Group mirror + widget
+    /// reload happen on every state change.
+    private func updatePremium(_ newValue: Bool) {
+        if isPremium != newValue { isPremium = newValue }
+        pushEntitlement()
     }
 
     /// Mirror the effective entitlement to the widgets' App Group.

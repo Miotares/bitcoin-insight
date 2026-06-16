@@ -12,6 +12,7 @@ struct BitcoinWidgetsApp: App {
     @StateObject private var settings = SettingsManager.shared
     @StateObject private var store = StoreManager()
     @State private var showPaywall = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -26,6 +27,15 @@ struct BitcoinWidgetsApp: App {
                     // Deep-link from a locked widget: bitcoininsight://paywall
                     if url.scheme == "bitcoininsight", url.host == "paywall", !store.hasPremium {
                         showPaywall = true
+                    }
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    // Reconcile any late / sandbox / Ask-to-Buy transaction that
+                    // landed while backgrounded — unlocks without a cold relaunch
+                    // and re-asserts the App Group flag for the widgets on every
+                    // foreground.
+                    if phase == .active {
+                        Task { await store.refreshEntitlements() }
                     }
                 }
         }
