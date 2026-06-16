@@ -71,8 +71,13 @@ struct SettingsView: View {
                 Text("Thanks for your support.").font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Restore") { Task { await store.restore() } }
-                .font(.caption).foregroundStyle(.secondary)
+            Button {
+                Task { await store.restore() }
+            } label: {
+                if store.isRestoring { ProgressView() } else { Text("Restore") }
+            }
+            .font(.caption).foregroundStyle(.secondary)
+            .disabled(store.isRestoring)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
@@ -160,6 +165,17 @@ struct SettingsView: View {
                         // MARK: - About
                         SettingsSection(title: "About") {
                             SettingsRow(title: "Version", value: appVersion)
+
+                            Divider().padding(.leading, 16)
+
+                            Button {
+                                if let url = URL(string: "https://github.com/Miotares/bitcoin-insight/blob/main/PRIVACY.md") {
+                                    openURL(url)
+                                }
+                            } label: {
+                                SettingsRow(title: "Privacy Policy", showChevron: true)
+                            }
+                            .buttonStyle(.plain)
 
                             Divider().padding(.leading, 16)
 

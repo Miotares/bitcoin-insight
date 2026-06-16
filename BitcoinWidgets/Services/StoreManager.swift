@@ -28,7 +28,9 @@ final class StoreManager: ObservableObject {
 
     @Published private(set) var product: Product?
     @Published private(set) var isPremium = false
-    @Published var purchaseError: String?
+    @Published var purchaseError: String?        // genuine errors → shown in red
+    @Published var infoMessage: String?          // neutral status (restore result, pending) → shown muted
+    @Published var isRestoring = false
 
     /// Whether the premium feature (the widgets) is unlocked.
     var hasPremium: Bool { isPremium }
@@ -64,14 +66,18 @@ final class StoreManager: ObservableObject {
             if products.isEmpty {
                 // Empty here means an App Store Connect problem (product not
                 // Approved, not attached to the version, ID mismatch, or the
-                // Paid Apps agreement inactive). No code can fix that — surface
-                // it instead of swallowing it with `try?`.
+                // Paid Apps agreement inactive). No code can fix that — but
+                // surface it so the paywall is never a silent dead-end (the
+                // user can pull-to-retry instead of staring at a disabled button).
                 log.error("No product returned for \(Self.productID, privacy: .public) — check App Store Connect (state/attachment/ID, Paid Apps agreement).")
+                purchaseError = "The store is unavailable right now. Pull down to retry."
             } else {
+                purchaseError = nil
                 log.info("Loaded product \(Self.productID, privacy: .public) price=\(self.product?.displayPrice ?? "?", privacy: .public)")
             }
         } catch {
             log.error("Product load failed: \(error.localizedDescription, privacy: .public)")
+            purchaseError = "The store is unavailable right now. Pull down to retry."
         }
     }
 
@@ -113,6 +119,7 @@ final class StoreManager: ObservableObject {
             return false
         }
         purchaseError = nil
+        infoMessage = nil
         do {
             switch try await product.purchase() {
             case .success(let verification):
@@ -132,9 +139,10 @@ final class StoreManager: ObservableObject {
 
             case .pending:
                 // Ask-to-Buy / SCA: the transaction may arrive later via
-                // Transaction.updates or the next foreground refresh.
+                // Transaction.updates or the next foreground refresh. This is a
+                // normal state, not an error — show it muted, not in red.
                 log.info("purchase() pending (awaiting approval)")
-                purchaseError = "Your purchase is pending approval. It will unlock once approved."
+                infoMessage = "Your purchase is pending approval. It will unlock once approved."
                 return false
 
             @unknown default:
@@ -149,14 +157,25 @@ final class StoreManager: ObservableObject {
     }
 
     func restore() async {
+        isRestoring = true
+        infoMessage = nil
+        purchaseError = nil          // clear any stale error before restoring
+        defer { isRestoring = false }
         log.info("restore() syncing with the App Store…")
         do {
             try await AppStore.sync()
         } catch {
             log.error("restore() AppStore.sync failed: \(error.localizedDescription, privacy: .public)")
             purchaseError = error.localizedDescription
+            return
         }
         await refreshEntitlements()
+        // Always give explicit feedback — App Review taps Restore on a fresh
+        // Apple ID that owns nothing, and a silent button reads as broken.
+        infoMessage = isPremium
+            ? "Purchases restored."
+            : "No previous purchase found on this Apple ID."
+        log.info("restore() done: isPremium=\(self.isPremium)")
     }
 
     // MARK: - Internals

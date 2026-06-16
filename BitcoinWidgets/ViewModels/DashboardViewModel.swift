@@ -172,7 +172,7 @@ class DashboardViewModel: ObservableObject {
             self.livePrice = adjustedPrice
             // Calculate Moscow Time (sats per USD)
             // Use explicit USD price if available, otherwise fallback to adjustedPrice ONLY if currency is USD
-            if let usd = usdPrice {
+            if let usd = usdPrice, usd > 0 {
                 self.moscowTime = Int(100_000_000 / usd)
             } else if settings.preferredCurrency.uppercased() == "USD", adjustedPrice > 0 {
                 self.moscowTime = Int(100_000_000 / adjustedPrice)

@@ -35,7 +35,12 @@ struct BitcoinWidgetsApp: App {
                     // and re-asserts the App Group flag for the widgets on every
                     // foreground.
                     if phase == .active {
-                        Task { await store.refreshEntitlements() }
+                        Task {
+                            // Retry a failed product load so the paywall recovers
+                            // if the IAP became available since launch.
+                            if store.product == nil { await store.loadProduct() }
+                            await store.refreshEntitlements()
+                        }
                     }
                 }
         }

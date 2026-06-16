@@ -44,6 +44,7 @@ struct PaywallView: View {
                     .padding()
                 }
                 .scrollContentBackground(.hidden)
+                .refreshable { await store.loadProduct() }
                 .safeAreaInset(edge: .bottom) {
                     VStack(spacing: Theme.Spacing.sm) {
                         Button {
@@ -70,19 +71,44 @@ struct PaywallView: View {
                         }
                         .disabled(working || store.product == nil)
 
-                        Button("Restore Purchases") {
+                        Button {
                             Task {
                                 await store.restore()
                                 if store.hasPremium { dismiss() }
                             }
+                        } label: {
+                            if store.isRestoring {
+                                ProgressView()
+                            } else {
+                                Text("Restore Purchases")
+                            }
                         }
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .disabled(store.isRestoring || working)
+
+                        // If the product never loaded (store unavailable / IAP not
+                        // served), offer an explicit retry instead of a dead button.
+                        if store.product == nil {
+                            Button("Try Again") {
+                                Task { await store.loadProduct() }
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.Accent.brand)
+                        }
 
                         if let error = store.purchaseError {
                             Text(error)
                                 .font(.caption)
                                 .foregroundStyle(Theme.Accent.down)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+                        }
+
+                        if let info = store.infoMessage {
+                            Text(info)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: .infinity)
                         }
