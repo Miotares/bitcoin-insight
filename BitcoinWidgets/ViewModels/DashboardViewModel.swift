@@ -157,7 +157,7 @@ class DashboardViewModel: ObservableObject {
     
     private func updatePriceUI(_ price: Double, usdPrice: Double? = nil) {
         // User requested multiplier for more precision/variation
-        let adjustedPrice = price * 1.00025
+        let adjustedPrice = price * SettingsManager.priceDisplayMultiplier
         
         let oldPrice = self.livePrice
         if adjustedPrice > oldPrice {

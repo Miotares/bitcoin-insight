@@ -9,12 +9,12 @@ import Foundation
 
 struct Formatters {
     
-    static func formatCurrency(value: Double, currencyCode: String) -> String {
+    static func formatCurrency(value: Double, currencyCode: String, fractionDigits: Int = 2) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = currencyCode
-        formatter.maximumFractionDigits = 2
-        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = fractionDigits
+        formatter.minimumFractionDigits = fractionDigits
         
         // Custom symbol logic based on user requirements
         switch currencyCode {

@@ -40,6 +40,12 @@ class SettingsManager: ObservableObject {
     /// Never persisted — starts empty, populates within seconds of app launch.
     @Published var btcPrices: [String: Double] = [:]
 
+    /// Tiny multiplier applied to displayed BTC prices so the value isn't a flat
+    /// integer (mempool returns whole numbers, so an unadjusted price always ends
+    /// in .00). Shared by the Dashboard hero and the Price detail view so both show
+    /// the exact same adjusted price.
+    static let priceDisplayMultiplier: Double = 1.00025
+
     private init() {
         self.preferredCurrency = UserDefaults.standard.string(forKey: "preferredCurrency") ?? "USD"
         self.hapticsEnabled = UserDefaults.standard.bool(forKey: "hapticsEnabled")

@@ -24,7 +24,11 @@ struct PriceDetailView: View {
         Array(referenceOrder.filter { $0 != settings.preferredCurrency }.prefix(4))
     }
 
-    private var heroPrice: Double { prices[settings.preferredCurrency] ?? 0 }
+    // Same tiny multiplier the Dashboard hero applies, so this price isn't a flat
+    // mempool integer (always .00) and matches the Dashboard exactly.
+    private var heroPrice: Double {
+        (prices[settings.preferredCurrency] ?? 0) * SettingsManager.priceDisplayMultiplier
+    }
 
     var body: some View {
         ZStack {
@@ -56,7 +60,7 @@ struct PriceDetailView: View {
                         ForEach(gridCurrencies, id: \.self) { code in
                             DetailStatCard(
                                 title: code,
-                                value: prices[code].map { Formatters.formatCurrency(value: $0, currencyCode: code) } ?? "-"
+                                value: prices[code].map { Formatters.formatCurrency(value: $0 * SettingsManager.priceDisplayMultiplier, currencyCode: code) } ?? "-"
                             )
                         }
                     }

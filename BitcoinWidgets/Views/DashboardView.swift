@@ -162,6 +162,9 @@ struct PriceHeroCard: View {
                 .padding(.bottom, 6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Make the WHOLE hero (incl. the spacer + sparkline) one tap target, so a
+        // tap anywhere — not just on the price text — opens the detail view.
+        .contentShape(Rectangle())
     }
 }
 

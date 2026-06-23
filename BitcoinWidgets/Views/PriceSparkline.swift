@@ -64,6 +64,23 @@ struct PriceSparkline: View {
     @State private var yLo: Double = 0
     @State private var yHi: Double = 1
 
+    init(currency: String) {
+        self.currency = currency
+        // Seed from the last persisted 24h series so the chart renders INSTANTLY
+        // on launch (no waiting on the network) and appears together with the rest
+        // of the Dashboard instead of popping in a moment later. The `.task` below
+        // then refreshes it in place.
+        let seeded = Self.loadSnapshot(for: currency)
+        _samples = State(initialValue: seeded)
+        if let bounds = Self.bounds(for: seeded.map(\.value)) {
+            _yLo = State(initialValue: bounds.lo)
+            _yHi = State(initialValue: bounds.hi)
+        } else {
+            _yLo = State(initialValue: 0)
+            _yHi = State(initialValue: 1)
+        }
+    }
+
     /// Up over the 24h window ⇒ green, down ⇒ red. Flat/empty defaults to up.
     private var isUp: Bool {
         guard let first = samples.first?.value, let last = samples.last?.value else { return true }
@@ -151,17 +168,9 @@ struct PriceSparkline: View {
 
     /// Apply a fresh series on the main actor, memoizing the fitted y-extent.
     private func apply(_ pts: [Sample]) async {
-        let values = pts.map(\.value)
-        guard let lo = values.min(), let hi = values.max() else { return }
-        let (lower, upper): (Double, Double)
-        if lo == hi {
-            let pad = lo == 0 ? 1 : abs(lo) * 0.05
-            (lower, upper) = (lo - pad, hi + pad)
-        } else {
-            let range = hi - lo
-            // A little headroom so the line never touches the top/bottom edge.
-            (lower, upper) = (lo - range * 0.15, hi + range * 0.15)
-        }
+        guard let (lower, upper) = Self.bounds(for: pts.map(\.value)) else { return }
+        // Persist so the next launch can render this instantly (see `init`).
+        saveSnapshot(pts)
         await MainActor.run {
             if samples.isEmpty {
                 // First appearance: the y-domain is set instantly and the chart
@@ -212,6 +221,55 @@ struct PriceSparkline: View {
             return pts
         } catch {
             return nil
+        }
+    }
+
+    // MARK: - Fitted y-extent
+
+    /// Fitted lower/upper y-bounds (with headroom) for a set of values, so the
+    /// line uses the full height without touching the edges. Shared by `init`
+    /// (seeding) and `apply` (refresh). Returns nil for an empty set.
+    private static func bounds(for values: [Double]) -> (lo: Double, hi: Double)? {
+        guard let lo = values.min(), let hi = values.max() else { return nil }
+        if lo == hi {
+            let pad = lo == 0 ? 1 : abs(lo) * 0.05
+            return (lo - pad, hi + pad)
+        }
+        let range = hi - lo
+        return (lo - range * 0.15, hi + range * 0.15)
+    }
+
+    // MARK: - Snapshot persistence (instant render on launch)
+
+    private struct StoredPoint: Codable { let t: Double; let v: Double }
+    private static let snapshotKey = "priceSparkline.snapshots.v1"
+
+    /// Last persisted 24h series for `currency`, re-indexed into `Sample`s. Empty
+    /// if nothing has been stored yet (first launch) or the snapshot is clearly
+    /// stale (newest point older than 36h — e.g. the app sat unused for days), in
+    /// which case we'd rather wait for the fetch than seed a misleading shape.
+    private static func loadSnapshot(for currency: String) -> [Sample] {
+        guard let data = UserDefaults.standard.data(forKey: snapshotKey),
+              let all = try? JSONDecoder().decode([String: [StoredPoint]].self, from: data),
+              let stored = all[currency.uppercased()], stored.count >= 2,
+              let newest = stored.last?.t,
+              Date().timeIntervalSince1970 - newest < 36 * 3_600 else { return [] }
+        return stored.enumerated().map { index, point in
+            Sample(id: index, date: Date(timeIntervalSince1970: point.t), value: point.v)
+        }
+    }
+
+    /// Persist the current 24h series for `currency` so the next launch renders it
+    /// immediately. Keyed per currency so a switch-then-relaunch is still instant.
+    private func saveSnapshot(_ pts: [Sample]) {
+        var all: [String: [StoredPoint]] = {
+            guard let data = UserDefaults.standard.data(forKey: Self.snapshotKey),
+                  let decoded = try? JSONDecoder().decode([String: [StoredPoint]].self, from: data) else { return [:] }
+            return decoded
+        }()
+        all[currency.uppercased()] = pts.map { StoredPoint(t: $0.date.timeIntervalSince1970, v: $0.value) }
+        if let data = try? JSONEncoder().encode(all) {
+            UserDefaults.standard.set(data, forKey: Self.snapshotKey)
         }
     }
 }

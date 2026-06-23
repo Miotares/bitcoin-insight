@@ -107,7 +107,7 @@ struct PriceChart: View {
 
             if let selected {
                 HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
-                    Text(Formatters.formatCurrency(value: selected.value, currencyCode: currency))
+                    Text(Formatters.formatCurrency(value: selected.value, currencyCode: currency, fractionDigits: 0))
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(.primary)
                         .contentTransition(.numericText())
@@ -149,7 +149,7 @@ struct PriceChart: View {
                 points: points,
                 accent: .bitcoinOrange,
                 xAxisFormat: xFormat,
-                valueFormat: { Formatters.formatCurrency(value: $0, currencyCode: currency) },
+                valueFormat: { Formatters.formatCurrency(value: $0, currencyCode: currency, fractionDigits: 0) },
                 onSelectionChange: { point in
                     selected = point
                 },
