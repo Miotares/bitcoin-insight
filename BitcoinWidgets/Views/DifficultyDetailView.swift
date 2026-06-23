@@ -14,6 +14,9 @@ struct CorrectDifficultyAdjustment: Decodable {
 struct DifficultyDetailView: View {
     @State private var adjustmentData: CorrectDifficultyAdjustment?
     @State private var errorMessage: String?
+    /// True while the user is finger-scrubbing the history chart — disables page
+    /// scrolling for that duration so the drag isn't torn between scroll and scrub.
+    @State private var isScrubbingChart = false
 
     var body: some View {
         ZStack {
@@ -81,6 +84,10 @@ struct DifficultyDetailView: View {
                         .cardSurface()
                         .padding(.horizontal)
 
+                        // MARK: - Historical Chart (under the boxes)
+                        DifficultyChart(isScrubbing: $isScrubbingChart)
+                            .padding(.horizontal)
+
                     } else if let error = errorMessage {
                         VStack(spacing: 16) {
                             Image(systemName: "wifi.exclamationmark")
@@ -106,6 +113,7 @@ struct DifficultyDetailView: View {
                 .padding(.bottom, 40)
             }
             .scrollContentBackground(.hidden)
+            .scrollDisabled(isScrubbingChart)
             .navigationTitle("Difficulty")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {

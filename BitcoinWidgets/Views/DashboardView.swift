@@ -11,13 +11,16 @@ struct DashboardView: View {
 
                 ScrollView {
                     VStack(spacing: Theme.Spacing.xxl) {
-                        // Hero Price (box-less, typographic)
-                        PriceHeroCard(
-                            price: viewModel.livePrice,
-                            currency: settings.preferredCurrency,
-                            changeColor: viewModel.priceChangeColor
-                        )
-                        .padding(.horizontal, 20)
+                        // Hero Price (box-less, typographic) — taps through to the price detail
+                        NavigationLink(destination: PriceDetailView()) {
+                            PriceHeroCard(
+                                price: viewModel.livePrice,
+                                currency: settings.preferredCurrency,
+                                changeColor: viewModel.priceChangeColor
+                            )
+                            .padding(.horizontal, 20)
+                        }
+                        .buttonStyle(CardButtonStyle())
 
                         // Main Stats Grid
                         LazyVGrid(
@@ -50,12 +53,18 @@ struct DashboardView: View {
                         }
                         .padding(.horizontal, 20)
 
-                        FeeRowView(fees: viewModel.fees)
-                            .padding(.horizontal, 20)
+                        NavigationLink(destination: FeesDetailView()) {
+                            FeeRowView(fees: viewModel.fees)
+                                .padding(.horizontal, 20)
+                        }
+                        .buttonStyle(CardButtonStyle())
 
                         if viewModel.moscowTime > 0 {
-                            MoscowTimeWidget(moscowTime: viewModel.moscowTime)
-                                .padding(.horizontal, 20)
+                            NavigationLink(destination: MoscowTimeDetailView()) {
+                                MoscowTimeWidget(moscowTime: viewModel.moscowTime)
+                                    .padding(.horizontal, 20)
+                            }
+                            .buttonStyle(CardButtonStyle())
                         }
 
                         if viewModel.circulatingSupply > 0 {
@@ -130,18 +139,27 @@ struct PriceHeroCard: View {
     let changeColor: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("BTC / \(currency.uppercased())")
-                .font(.caption).fontWeight(.semibold).tracking(0.8)
-                .foregroundStyle(.secondary)
+        HStack(alignment: .bottom, spacing: Theme.Spacing.md) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("BTC / \(currency.uppercased())")
+                    .font(.caption).fontWeight(.semibold).tracking(0.8)
+                    .foregroundStyle(.secondary)
 
-            Text(Formatters.formatCurrency(value: price, currencyCode: currency))
-                .font(.system(size: 46, weight: .bold, design: .rounded))
-                .foregroundStyle(changeColor)
-                .minimumScaleFactor(0.5).lineLimit(1)
-                .contentTransition(.numericText())
-                .animation(.snappy, value: price)
-                .onChange(of: price) { _, _ in Haptics.trigger(.medium) }
+                Text(Formatters.formatCurrency(value: price, currencyCode: currency))
+                    .font(.system(size: 46, weight: .bold, design: .rounded))
+                    .foregroundStyle(changeColor)
+                    .minimumScaleFactor(0.5).lineLimit(1)
+                    .contentTransition(.numericText())
+                    .animation(.snappy, value: price)
+                    .onChange(of: price) { _, _ in Haptics.trigger(.medium) }
+            }
+
+            Spacer(minLength: Theme.Spacing.md)
+
+            // Minimal, non-interactive 24h sparkline — green if up, red if down.
+            PriceSparkline(currency: currency)
+                .frame(width: 92, height: 44)
+                .padding(.bottom, 6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -249,7 +267,7 @@ struct FeeRowView: View {
     let fees: FeeData
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-            SectionLabel("Network Fees")
+            HStack { SectionLabel("Network Fees"); Spacer(); CardChevron() }
             HStack(spacing: Theme.Spacing.lg) {
                 FeeItem(title: "Low", value: fees.low, color: Theme.Accent.feeLow)
                 FeeItem(title: "Medium", value: fees.medium, color: Theme.Accent.feeMid)
@@ -302,18 +320,22 @@ struct AnimatedFeeText: View {
 struct MoscowTimeWidget: View {
     let moscowTime: Int
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            HStack {
                 SectionLabel("Moscow Time")
+                Spacer()
+                CardChevron()
+            }
+            HStack(alignment: .firstTextBaseline) {
                 Text("\(moscowTime)")
                     .font(.system(.title2, design: .rounded).weight(.bold))
                     .monospacedDigit()
                     .contentTransition(.numericText())
                     .animation(.snappy, value: moscowTime)
                     .onChange(of: moscowTime) { _, _ in Haptics.trigger() }
+                Spacer()
+                Text("sats / $").font(.caption).foregroundStyle(.secondary)
             }
-            Spacer()
-            Text("sats / $").font(.caption).foregroundStyle(.secondary)
         }
         .card()
     }

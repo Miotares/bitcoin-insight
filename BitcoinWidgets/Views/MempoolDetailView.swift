@@ -19,6 +19,9 @@ struct MempoolDetailView: View {
     @State private var mempoolData: MempoolData?
     @State private var minFee: Int?
     @State private var errorMessage: String?
+    /// True while the user is finger-scrubbing the history chart — disables page
+    /// scrolling for that duration so the drag isn't torn between scroll and scrub.
+    @State private var isScrubbingChart = false
 
     var body: some View {
         ZStack {
@@ -66,6 +69,10 @@ struct MempoolDetailView: View {
                             )
                         }
                         .padding(.horizontal)
+
+                        // MARK: - Historical Chart (under the boxes)
+                        MempoolChart(isScrubbing: $isScrubbingChart)
+                            .padding(.horizontal)
                         
 
                         
@@ -94,6 +101,7 @@ struct MempoolDetailView: View {
                 .padding(.bottom, 40)
             }
             .scrollContentBackground(.hidden)
+            .scrollDisabled(isScrubbingChart)
             .navigationTitle("Mempool")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {

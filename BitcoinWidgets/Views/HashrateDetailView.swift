@@ -22,6 +22,10 @@ struct HashrateDetailView: View {
     @State private var hashrateData: HashrateData?
     @State private var errorMessage: String?
     @State private var hashratePeriods: [String: Double] = [:]
+    /// True while the user is finger-scrubbing the history chart. We disable
+    /// page scrolling for that duration so a drag started on the chart can never
+    /// be torn between vertical scroll and horizontal selection. Cleared on lift.
+    @State private var isScrubbingChart = false
 
     var body: some View {
         ZStack {
@@ -48,7 +52,7 @@ struct HashrateDetailView: View {
                                 .padding(.horizontal)
                         }
                         .padding(.top, 40)
-                        
+
                         // MARK: - Technical Stats Grid
                         LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
                             DetailStatCard(
@@ -115,6 +119,10 @@ struct HashrateDetailView: View {
                         .cardSurface()
                         .padding(.horizontal)
 
+                        // MARK: - Historical Chart (under the boxes)
+                        HashrateChart(isScrubbing: $isScrubbingChart)
+                            .padding(.horizontal)
+
                     } else if let error = errorMessage {
                         VStack(spacing: 16) {
                             Image(systemName: "wifi.exclamationmark")
@@ -140,6 +148,10 @@ struct HashrateDetailView: View {
                 .padding(.bottom, 40)
             }
             .scrollContentBackground(.hidden)
+            // Belt-and-braces scroll coexistence: freeze the page while the
+            // user is scrubbing the history chart so the drag can't be torn
+            // between vertical scroll and horizontal selection.
+            .scrollDisabled(isScrubbingChart)
             .navigationTitle("Hashrate")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {

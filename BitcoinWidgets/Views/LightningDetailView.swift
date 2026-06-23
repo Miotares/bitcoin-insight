@@ -22,6 +22,9 @@ struct LightningStats: Decodable {
 struct LightningDetailView: View {
     @State private var lightningStats: LightningStats?
     @State private var errorMessage: String?
+    /// True while the user is finger-scrubbing the history chart — disables page
+    /// scrolling for that duration so the drag isn't torn between scroll and scrub.
+    @State private var isScrubbingChart = false
 
     var body: some View {
         ZStack {
@@ -91,6 +94,10 @@ struct LightningDetailView: View {
                         .cardSurface()
                         .padding(.horizontal)
 
+                        // MARK: - Historical Chart (under the boxes)
+                        LightningChart(isScrubbing: $isScrubbingChart)
+                            .padding(.horizontal)
+
                     } else if let error = errorMessage {
                         VStack(spacing: 16) {
                             Image(systemName: "wifi.exclamationmark")
@@ -116,6 +123,7 @@ struct LightningDetailView: View {
                 .padding(.bottom, 40)
             }
             .scrollContentBackground(.hidden)
+            .scrollDisabled(isScrubbingChart)
             .navigationTitle("Lightning")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
