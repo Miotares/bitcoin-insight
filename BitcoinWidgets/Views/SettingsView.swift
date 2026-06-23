@@ -113,6 +113,15 @@ struct SettingsView: View {
                                     Text("CNY (¥)").tag("CNY")
                                     Text("HKD ($)").tag("HKD")
                                     Text("SEK (kr)").tag("SEK")
+                                    Text("BRL (R$)").tag("BRL")
+                                    Text("INR (₹)").tag("INR")
+                                    Text("MXN (Mex$)").tag("MXN")
+                                    Text("KRW (₩)").tag("KRW")
+                                    Text("THB (฿)").tag("THB")
+                                    Text("IDR (Rp)").tag("IDR")
+                                    Text("TRY (₺)").tag("TRY")
+                                    Text("CZK (Kč)").tag("CZK")
+                                    Text("PLN (zł)").tag("PLN")
                                 }
                                 .tint(.secondary)
                             }

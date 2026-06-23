@@ -17,8 +17,10 @@ struct PriceDetailView: View {
     @State private var prices: [String: Double] = SettingsManager.shared.btcPrices
     @State private var isScrubbingChart = false
 
-    /// Reference currencies for the grid (the 7 the app/endpoint support).
-    private let referenceOrder = ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD"]
+    /// Reference currencies for the grid. The liquid majors lead so prefix(4)
+    /// always picks ones with a live price; the Tier-1 additions follow.
+    private let referenceOrder = ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD",
+                                  "BRL", "INR", "MXN", "KRW", "THB", "IDR", "TRY", "CZK", "PLN"]
 
     private var gridCurrencies: [String] {
         Array(referenceOrder.filter { $0 != settings.preferredCurrency }.prefix(4))

@@ -38,6 +38,24 @@ struct Formatters {
             formatter.currencySymbol = "HKD" // Ambiguous $
         case "CHF":
             formatter.currencySymbol = "CHF" // Standard
+        case "BRL":
+            formatter.currencySymbol = "R$"
+        case "INR":
+            formatter.currencySymbol = "₹"
+        case "MXN":
+            formatter.currencySymbol = "MXN" // Ambiguous $
+        case "KRW":
+            formatter.currencySymbol = "₩"
+        case "THB":
+            formatter.currencySymbol = "฿"
+        case "IDR":
+            formatter.currencySymbol = "Rp"
+        case "TRY":
+            formatter.currencySymbol = "₺"
+        case "CZK":
+            formatter.currencySymbol = "Kč"
+        case "PLN":
+            formatter.currencySymbol = "zł"
         default:
             // Fallback to ticker if not explicitly handled but potentially ambiguous,
             // or let system decide. For now, let's default to the ticker for safety 

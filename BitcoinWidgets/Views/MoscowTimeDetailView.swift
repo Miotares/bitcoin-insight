@@ -15,7 +15,8 @@ struct MoscowTimeDetailView: View {
     @State private var prices: [String: Double] = SettingsManager.shared.btcPrices
     @State private var isScrubbingChart = false
 
-    private let referenceOrder = ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD"]
+    private let referenceOrder = ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD",
+                                  "BRL", "INR", "MXN", "KRW", "THB", "IDR", "TRY", "CZK", "PLN"]
 
     private var gridCurrencies: [String] {
         Array(referenceOrder.filter { $0 != settings.preferredCurrency }.prefix(4))

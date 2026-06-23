@@ -1,14 +1,19 @@
 // Edge Function: backfill-price-history
 // Builds a daily multi-currency BTC price series and upserts it into
 // public.price_history. BTC/USD daily close from Bitstamp (paginated), converted
-// to EUR/GBP/CHF/CAD/AUD/JPY via ECB EUR-base reference rates
+// to the other currencies via ECB EUR-base reference rates
 // (price_CUR = price_USD * ecb[CUR] / ecb[USD]; ECB rates forward-filled over
 // weekends/holidays). Idempotent (upsert on `day`), so it doubles as a re-runnable
 // backfill and a daily top-up. Writes with the service role (bypasses read-only RLS).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const CURS = ["GBP", "CHF", "CAD", "AUD", "JPY"]; // non-USD/EUR ECB crosses
+// Non-USD/EUR ECB crosses. USD + EUR are handled explicitly below.
+// Tier-1 additions (BRL…PLN) are all in the ECB reference set.
+const CURS = [
+  "GBP", "CHF", "CAD", "AUD", "JPY",
+  "BRL", "INR", "MXN", "KRW", "THB", "IDR", "TRY", "CZK", "PLN",
+];
 
 async function fetchBitstamp(): Promise<Map<string, number>> {
   const out = new Map<string, number>();
@@ -43,15 +48,18 @@ async function fetchECB(): Promise<
     "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.xml",
   )).text();
   const rates = new Map<string, Record<string, number>>();
-  // Each day = <Cube time="YYYY-MM-DD"> ...self-closing currency cubes... </Cube>
-  const dayRe = /<Cube time="(\d{4}-\d{2}-\d{2})">([\s\S]*?)<\/Cube>/g;
+  // Each day = <Cube time="YYYY-MM-DD"> ...self-closing currency cubes... </Cube>.
+  // Quote-agnostic: the hist file uses double quotes, the daily file single quotes.
+  const dayRe = /<Cube time=["'](\d{4}-\d{2}-\d{2})["']>([\s\S]*?)<\/Cube>/g;
   let m: RegExpExecArray | null;
   while ((m = dayRe.exec(xml)) !== null) {
     const r: Record<string, number> = {};
-    const curRe = /currency="([A-Z]{3})"\s+rate="([0-9.]+)"/g;
+    const curRe = /currency=["']([A-Z]{3})["']\s+rate=["']([0-9.]+)["']/g;
     let c: RegExpExecArray | null;
     while ((c = curRe.exec(m[2])) !== null) r[c[1]] = parseFloat(c[2]);
-    if (r.USD && CURS.every((k) => k in r)) rates.set(m[1], r);
+    // Keep any day with at least USD; a currency missing on a given day (early
+    // history before the ECB added it) is left null rather than dropping the day.
+    if (r.USD) rates.set(m[1], r);
   }
   return { days: [...rates.keys()].sort(), rates };
 }
@@ -76,12 +84,16 @@ Deno.serve(async () => {
     const rows: Record<string, unknown>[] = [];
     for (const day of [...btc.keys()].sort()) {
       const fx = fxFor(day, ecb.days, ecb.rates);
-      if (!fx) continue;
+      if (!fx || !fx.USD) continue;
       const usd = btc.get(day)!;
+      // Fixed key set on every row (null when a currency is missing that day) so
+      // the bulk upsert stays column-consistent.
       const row: Record<string, unknown> = {
         day, usd, eur: usd / fx.USD, source: "bitstamp+ecb",
       };
-      for (const k of CURS) row[k.toLowerCase()] = usd * fx[k] / fx.USD;
+      for (const k of CURS) {
+        row[k.toLowerCase()] = (fx[k] != null) ? usd * fx[k] / fx.USD : null;
+      }
       rows.push(row);
     }
     const sb = createClient(
