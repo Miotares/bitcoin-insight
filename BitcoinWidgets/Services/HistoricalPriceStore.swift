@@ -17,6 +17,11 @@
 //  chart, which all read mempool. CoinGecko stays a per-view fallback (the
 //  sparkline uses it for the 24h window only if mempool is unavailable).
 //
+//  Far-past enrichment: mempool's history coarsens to ~weekly far back, so we ALSO
+//  read our Supabase `price_history` table (dense daily back to 2011) and MERGE —
+//  DB daily for the deep past, mempool for the recent window. This is purely
+//  additive: if the Supabase read fails, the chart still works from mempool alone.
+//
 
 import Foundation
 import OSLog
@@ -70,10 +75,18 @@ actor HistoricalPriceStore {
         if let existing = inFlight[key] {
             return await existing.value
         }
-        let task = Task<[Point], Never> { await Self.fetchMempool(currency: key) }
+        let task = Task<[Point], Never> {
+            // mempool (gap-free, hourly-recent) + our Supabase price_history (dense
+            // daily, deep past) fetched concurrently, then merged. Additive: if the
+            // DB read fails the chart still works from mempool alone.
+            async let mempool = Self.fetchMempool(currency: key)
+            async let db = Self.fetchPriceHistoryDB(currency: key)
+            return Self.merge(mempool: await mempool, db: await db)
+        }
         inFlight[key] = task
         let points = await task.value
         inFlight[key] = nil
+        Self.log.debug("series [\(key, privacy: .public)] merged points=\(points.count) first=\(points.first.map { ISO8601DateFormatter().string(from: $0.date) } ?? "-", privacy: .public)")
         if !points.isEmpty {
             cache[key] = Entry(points: points, fetchedAt: Date())
         }
@@ -99,5 +112,67 @@ actor HistoricalPriceStore {
         } catch {
             return []
         }
+    }
+
+    // MARK: - Supabase price_history (dense daily, deep past)
+
+    private static let supabaseURL = "https://hyyagnnsjbpsehriyafn.supabase.co"
+    private static let supabaseKey = "sb_publishable_FEEoI6sfC_EZ1oLP2E0IJQ_Yftfzrk9"
+
+    /// Parses the table's `day` column ("yyyy-MM-dd", UTC).
+    private static let dbDayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    /// Read our backfilled daily series for `currency` from Supabase (read-only,
+    /// anon). The column is the lowercased currency code. Empty on any failure —
+    /// the caller then just uses mempool (the chart degrades gracefully).
+    private static func fetchPriceHistoryDB(currency: String) async -> [Point] {
+        let cur = currency.lowercased()
+        var pts: [Point] = []
+        let pageSize = 1000          // PostgREST caps a response at 1000 rows
+        var offset = 0
+        while offset <= 50_000 {     // safety cap (~50k rows max)
+            guard let url = URL(string: "\(supabaseURL)/rest/v1/price_history?select=day,\(cur)&order=day.asc&limit=\(pageSize)&offset=\(offset)") else { break }
+            var req = URLRequest(url: url)
+            req.setValue(supabaseKey, forHTTPHeaderField: "apikey")
+            do {
+                let (data, _) = try await URLSession.shared.data(for: req)
+                guard let rows = try JSONSerialization.jsonObject(with: data) as? [[String: Any]], !rows.isEmpty else { break }
+                for row in rows {
+                    guard let dayStr = row["day"] as? String,
+                          let date = dbDayFormatter.date(from: dayStr),
+                          let price = (row[cur] as? NSNumber)?.doubleValue, price > 0 else { continue }
+                    pts.append(Point(date: date, price: price))
+                }
+                if rows.count < pageSize { break }   // last page
+                offset += pageSize
+            } catch {
+                break
+            }
+        }
+        log.debug("price_history DB fetch [\(currency, privacy: .public)] rows=\(pts.count)")
+        return pts
+    }
+
+    /// Gap-fill the (sparse far-past) mempool series with our dense daily DB series:
+    /// add a DB point ONLY for UTC days mempool doesn't already cover. This fills
+    /// mempool's weekly far-past gaps with daily points while leaving its dense,
+    /// hourly recent window untouched (no resolution downgrade), and never creates
+    /// a hole. mempool stays the backbone, so a missing/partial DB just means fewer
+    /// filled days, never a broken chart.
+    private static func merge(mempool: [Point], db: [Point]) -> [Point] {
+        guard !db.isEmpty else { return mempool }
+        guard !mempool.isEmpty else { return db }
+        func dayKey(_ d: Date) -> Int { Int(d.timeIntervalSince1970 / 86_400) }
+        var covered = Set<Int>(minimumCapacity: mempool.count)
+        for p in mempool { covered.insert(dayKey(p.date)) }
+        let extra = db.filter { !covered.contains(dayKey($0.date)) }
+        guard !extra.isEmpty else { return mempool }
+        return (mempool + extra).sorted { $0.date < $1.date }
     }
 }
