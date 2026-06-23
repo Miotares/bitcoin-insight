@@ -191,9 +191,27 @@ struct PriceChart: View {
         } else {
             filtered = series
         }
-        points = filtered.enumerated().map { index, p in
+        // For the wide "All" range the series mixes mempool's HOURLY recent data
+        // with dense DAILY far-past points. The downsampler (LTTB) buckets by array
+        // index, so the thousands of hourly-recent indices would hog the samples and
+        // starve the far past (e.g. zero points for Sept 2011). Collapse to one point
+        // per UTC day first so the input is time-uniform and every era renders at the
+        // same daily density. Zoomed ranges (1W/1M/1Y) keep their hourly resolution.
+        let prepared = (range == .all) ? Self.collapseToDaily(filtered) : filtered
+        points = prepared.enumerated().map { index, p in
             ScrubPoint(id: index, date: p.date, value: p.price)
         }
+    }
+
+    /// One point per UTC day (the latest sample of each day), ascending. Makes a
+    /// mixed hourly+daily series time-uniform before downsampling.
+    private static func collapseToDaily(_ pts: [PricePoint]) -> [PricePoint] {
+        guard !pts.isEmpty else { return pts }
+        var byDay: [Int: PricePoint] = [:]
+        for p in pts {
+            byDay[Int(p.date.timeIntervalSince1970 / 86_400)] = p  // pts ascending ⇒ keeps the day's last
+        }
+        return byDay.keys.sorted().map { byDay[$0]! }
     }
 
     private func load() async {
