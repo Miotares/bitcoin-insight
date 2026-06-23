@@ -55,10 +55,13 @@ struct FeesChart: View {
     }
 
     // Supabase read contract (read-only RLS, publishable key — same as the widget).
-    // desc + high limit so we always get the most RECENT rows (PostgREST caps page size).
-    private static let endpoint =
-        "https://hyyagnnsjbpsehriyafn.supabase.co/rest/v1/fees_history?select=recorded_at,fast,half_hour,hour&order=recorded_at.desc&limit=50000"
+    // Server-side downsampling RPC: returns ≤`buckets` time-uniform points for the
+    // requested window in ONE request, so 1M/All aren't silently truncated at
+    // PostgREST's 1000-row page cap. Re-fetched per range with that range's `since`.
+    private static let rpcEndpoint =
+        "https://hyyagnnsjbpsehriyafn.supabase.co/rest/v1/rpc/fees_history_series"
     private static let apiKey = "sb_publishable_FEEoI6sfC_EZ1oLP2E0IJQ_Yftfzrk9"
+    private static let buckets = 600
 
     // values order = [fast, halfHour, hour] → [High/red, Medium/orange, Low/green].
     private static let series: [MultiScrubSeries] = [
@@ -100,7 +103,7 @@ struct FeesChart: View {
         .onChange(of: range) { _, _ in
             selectedIndex = nil
             isScrubbing = false
-            rebuildRows()
+            Task { await load() }   // re-fetch: each range pulls its own window
         }
         .task { await load() }
     }
@@ -200,21 +203,19 @@ struct FeesChart: View {
 
     // MARK: - Data
 
+    /// Map the (already windowed + downsampled) samples to chart rows.
     private func rebuildRows() {
-        guard let latest = samples.last?.date else {
-            rows = []
-            return
-        }
-        let filtered: [Sample]
-        if let window = range.seconds {
-            let cutoff = latest.addingTimeInterval(-window)
-            filtered = samples.filter { $0.date >= cutoff }
-        } else {
-            filtered = samples
-        }
-        rows = filtered.enumerated().map { index, s in
+        rows = samples.enumerated().map { index, s in
             MultiScrubRow(id: index, date: s.date, values: [s.fast, s.halfHour, s.hour])
         }
+    }
+
+    /// `since` for the selected range; "All" reaches before any row exists.
+    private var rangeSince: Date {
+        if let window = range.seconds {
+            return Date().addingTimeInterval(-window)
+        }
+        return Date(timeIntervalSince1970: 1_230_768_000)  // 2009-01-01
     }
 
     private func load() async {
@@ -223,14 +224,18 @@ struct FeesChart: View {
             failed = false
         }
 
-        guard let url = URL(string: Self.endpoint) else {
+        guard let url = URL(string: Self.rpcEndpoint) else {
             await MainActor.run { isLoading = false; failed = true }
             return
         }
         var request = URLRequest(url: url)
+        request.httpMethod = "POST"
         request.setValue(Self.apiKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(Self.apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 12
+        let iso = ISO8601DateFormatter().string(from: rangeSince)
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["since": iso, "buckets": Self.buckets])
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
