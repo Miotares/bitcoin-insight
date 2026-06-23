@@ -149,6 +149,10 @@ struct PriceChart: View {
                 points: points,
                 accent: .bitcoinOrange,
                 xAxisFormat: xFormat,
+                // "All" spans ~15 years; render it dense (uniform daily, so the
+                // far past follows real price moves like mempool's recent data and
+                // the DB→mempool source switch is invisible). Other ranges keep 500.
+                renderTarget: range == .all ? 1500 : 500,
                 valueFormat: { Formatters.formatCurrency(value: $0, currencyCode: currency, fractionDigits: 0) },
                 onSelectionChange: { point in
                     selected = point

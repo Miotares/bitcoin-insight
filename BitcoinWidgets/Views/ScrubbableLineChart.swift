@@ -131,6 +131,7 @@ struct ScrubbableLineChart: View {
         readoutDateFormat: Date.FormatStyle = Date.FormatStyle.dateTime.year().month(.abbreviated).day(),
         showsInlineReadout: Bool = false,
         showsXAxis: Bool = true,
+        renderTarget: Int = 500,
         valueFormat: @escaping (Double) -> String,
         onSelectionChange: @escaping (ScrubPoint?) -> Void = { _ in },
         onScrubbingChange: @escaping (Bool) -> Void = { _ in }
@@ -141,6 +142,7 @@ struct ScrubbableLineChart: View {
         self.readoutDateFormat = readoutDateFormat
         self.showsInlineReadout = showsInlineReadout
         self.showsXAxis = showsXAxis
+        self.renderTarget = renderTarget
         self.valueFormat = valueFormat
         self.onSelectionChange = onSelectionChange
         self.onScrubbingChange = onScrubbingChange
@@ -148,9 +150,10 @@ struct ScrubbableLineChart: View {
 
     /// Target sample count for rendering + lookup. A ~350pt-wide chart at ~3×
     /// scale resolves well under this many distinct x positions, so ~500 is a
-    /// generous ceiling that keeps the curve visually lossless while capping the
-    /// per-frame mark count. Series at or below this are used as-is.
-    private static let renderTarget = 500
+    /// generous default that keeps the curve visually lossless while capping the
+    /// per-frame mark count. Callers may raise it (e.g. the price "All" range) to
+    /// render a denser, uniform line. Series at or below this are used as-is.
+    let renderTarget: Int
 
     /// The raw x location reported under the finger, in the data (Date) domain.
     /// Driven and cleared by Charts via `.chartXSelection`.
@@ -392,7 +395,7 @@ struct ScrubbableLineChart: View {
         let key = SourceKey(points)
         guard key != displaySourceKey else { return }
         displaySourceKey = key
-        let decimated = ChartDownsampling.lttb(points, target: Self.renderTarget)
+        let decimated = ChartDownsampling.lttb(points, target: renderTarget)
         displayPoints = decimated
         // Compute the y-extent + fill floor ONCE here (single pass over the
         // decimated values) and memoize it, so `yDomain`/`fillFloor` never re-scan
