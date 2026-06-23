@@ -267,9 +267,7 @@ struct WalletCard: View {
 
     private var btcBalance: Double { Double(wallet.totalBalanceSats) / 100_000_000.0 }
     private var fiatValue: Double {
-        guard viewModel.totalBalanceSats > 0, viewModel.totalBalanceFiat > 0 else { return 0 }
-        let totalBTC = Double(viewModel.totalBalanceSats) / 100_000_000.0
-        return btcBalance / totalBTC * viewModel.totalBalanceFiat
+        btcBalance * SettingsManager.shared.displayPrice(for: currency)
     }
 
     var body: some View {

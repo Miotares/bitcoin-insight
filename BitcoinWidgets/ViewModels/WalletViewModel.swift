@@ -580,8 +580,7 @@ class WalletViewModel: ObservableObject {
     }
 
     private func recomputeFiat() {
-        let currency = settings.preferredCurrency.uppercased()
-        let price = settings.btcPrices[currency] ?? 0
+        let price = settings.displayPrice(for: settings.preferredCurrency)
         totalBalanceFiat = (Double(totalBalanceSats) / 100_000_000.0) * price
     }
 

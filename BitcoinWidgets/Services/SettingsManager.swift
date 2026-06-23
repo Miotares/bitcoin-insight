@@ -46,6 +46,13 @@ class SettingsManager: ObservableObject {
     /// the exact same adjusted price.
     static let priceDisplayMultiplier: Double = 1.00025
 
+    /// BTC price for `currencyCode` including the cosmetic display multiplier, so
+    /// every surface (Dashboard hero, Price detail, Wallet valuations) shows the
+    /// exact same adjusted price. Returns 0 until the first price fetch lands.
+    func displayPrice(for currencyCode: String) -> Double {
+        (btcPrices[currencyCode.uppercased()] ?? 0) * SettingsManager.priceDisplayMultiplier
+    }
+
     private init() {
         self.preferredCurrency = UserDefaults.standard.string(forKey: "preferredCurrency") ?? "USD"
         self.hapticsEnabled = UserDefaults.standard.bool(forKey: "hapticsEnabled")

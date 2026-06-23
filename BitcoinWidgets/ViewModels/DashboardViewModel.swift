@@ -34,7 +34,8 @@ class DashboardViewModel: ObservableObject {
     
     // MARK: - Private Properties
     private var settings = SettingsManager.shared
-    
+    private var refreshTask: Task<Void, Never>?
+
     // MARK: - Initialization
     init() {
         Task {
@@ -42,13 +43,19 @@ class DashboardViewModel: ObservableObject {
         }
         startTimer()
     }
-    
+
+    deinit {
+        refreshTask?.cancel()
+    }
+
     private func startTimer() {
-        Task { [weak self] in
+        refreshTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 10 * 1_000_000_000)
                 guard let self = self else { return }
-                await self.refreshData()
+                // Silent periodic refresh — no haptic. The buzz is reserved for
+                // explicit user actions (pull-to-refresh / currency change).
+                await self.loadData()
             }
         }
     }
@@ -110,7 +117,10 @@ class DashboardViewModel: ObservableObject {
             case "CHF": parsedPrice = typed.CHF
             case "AUD": parsedPrice = typed.AUD
             case "JPY": parsedPrice = typed.JPY
-            default: parsedPrice = typed.USD
+            // mempool serves only the 7 currencies above. For anything else
+            // (CNY/HKD/SEK) leave parsedPrice nil so this throws and the
+            // CoinGecko fallback — which supports them — takes over.
+            default: parsedPrice = nil
             }
 
             // Write all prices to the shared store so the Wallet tab can use them live
@@ -122,7 +132,12 @@ class DashboardViewModel: ObservableObject {
             if let v = typed.CHF { allPrices["CHF"] = v }
             if let v = typed.AUD { allPrices["AUD"] = v }
             if let v = typed.JPY { allPrices["JPY"] = v }
-            if !allPrices.isEmpty { SettingsManager.shared.btcPrices = allPrices }
+            // Merge (not replace) so a CoinGecko-only currency (CNY/HKD/SEK) added
+            // on a previous cycle keeps its last value while CoinGecko re-fetches it,
+            // instead of flashing to 0 between this write and the fallback.
+            if !allPrices.isEmpty {
+                SettingsManager.shared.btcPrices.merge(allPrices) { _, new in new }
+            }
         }
 
         // Fallback parsing
@@ -149,6 +164,12 @@ class DashboardViewModel: ObservableObject {
                 let usdPrice = btcData["usd"]
                 
                 if let price = price {
+                    // Keep the shared price store in sync so the Wallet tab can value
+                    // balances in currencies mempool doesn't serve (e.g. CNY/HKD/SEK).
+                    var prices = SettingsManager.shared.btcPrices
+                    prices[settings.preferredCurrency.uppercased()] = price
+                    if let usd = usdPrice { prices["USD"] = usd }
+                    SettingsManager.shared.btcPrices = prices
                     await updatePriceUI(price, usdPrice: usdPrice)
                 }
             }
