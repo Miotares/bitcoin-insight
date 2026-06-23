@@ -146,6 +146,18 @@ class DashboardViewModel: ObservableObject {
             if usdPrice == nil, let d = json["USD"] as? Double { usdPrice = d }
         }
 
+        // mempool serves only the 7 currencies above. For the others (BRL/INR/…)
+        // derive the live fiat price from the live USD price x today's FX ratio
+        // (db.cur/db.usd from price_history) — the same method mempool itself uses,
+        // and independent of the flaky CoinGecko endpoint. Also store it so the
+        // Wallet tab can value balances in that currency.
+        if parsedPrice == nil, let usd = usdPrice, usd > 0,
+           let fx = await HistoricalPriceStore.latestFXRatio(currency: currencyKey), fx > 0 {
+            let derived = usd * fx
+            parsedPrice = derived
+            SettingsManager.shared.btcPrices[currencyKey] = derived
+        }
+
         guard let price = parsedPrice else { throw URLError(.badServerResponse) }
         await updatePriceUI(price, usdPrice: usdPrice)
     }

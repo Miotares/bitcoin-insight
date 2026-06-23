@@ -159,6 +159,29 @@ actor HistoricalPriceStore {
         return pts
     }
 
+    /// USD→`currency` FX rate from the most recent price_history row (db.cur / db.usd,
+    /// two BTC prices on the same day → their ratio is the FX rate). Lets the live
+    /// fiat price be derived as liveUSD × ratio for currencies mempool doesn't serve
+    /// (BRL/INR/…), instead of depending on the flaky/blocked CoinGecko endpoint.
+    /// Returns nil for USD or on any failure.
+    static func latestFXRatio(currency: String) async -> Double? {
+        let cur = currency.lowercased()
+        guard cur != "usd",
+              let url = URL(string: "\(supabaseURL)/rest/v1/price_history?select=usd,\(cur)&order=day.desc&limit=1") else { return nil }
+        var req = URLRequest(url: url)
+        req.setValue(supabaseKey, forHTTPHeaderField: "apikey")
+        do {
+            let (data, _) = try await URLSession.shared.data(for: req)
+            guard let rows = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                  let row = rows.first,
+                  let usd = (row["usd"] as? NSNumber)?.doubleValue, usd > 0,
+                  let cv = (row[cur] as? NSNumber)?.doubleValue, cv > 0 else { return nil }
+            return cv / usd
+        } catch {
+            return nil
+        }
+    }
+
     /// Gap-fill the (sparse far-past) mempool series with our dense daily DB series:
     /// add a DB point ONLY for UTC days mempool doesn't already cover. This fills
     /// mempool's weekly far-past gaps with daily points while leaving its dense,

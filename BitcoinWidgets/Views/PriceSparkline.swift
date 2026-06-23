@@ -63,6 +63,12 @@ struct PriceSparkline: View {
     /// the y-scale stay stable across re-renders (computed once per load).
     @State private var yLo: Double = 0
     @State private var yHi: Double = 1
+    /// Currency the currently-shown `samples` belong to. Lets `apply` tell a
+    /// same-currency REFRESH (domain barely moves ⇒ animate the line smoothly to
+    /// the new 24h shape) apart from a currency SWITCH (domain jumps to a whole
+    /// new price scale ⇒ swap without animation, or the old-currency line shoots
+    /// out of frame before settling).
+    @State private var samplesCurrency: String = ""
 
     init(currency: String) {
         self.currency = currency
@@ -72,6 +78,10 @@ struct PriceSparkline: View {
         // then refreshes it in place.
         let seeded = Self.loadSnapshot(for: currency)
         _samples = State(initialValue: seeded)
+        // The seeded snapshot is this currency's series, so the FIRST live fetch
+        // after launch counts as a same-currency refresh and morphs smoothly into
+        // place (the "open the app and watch it update" moment) rather than snapping.
+        _samplesCurrency = State(initialValue: seeded.isEmpty ? "" : currency)
         if let bounds = Self.bounds(for: seeded.map(\.value)) {
             _yLo = State(initialValue: bounds.lo)
             _yHi = State(initialValue: bounds.hi)
@@ -151,7 +161,26 @@ struct PriceSparkline: View {
             : await HistoricalPriceStore.shared.series(for: currency)
         if let pts = last24h(from: series), pts.count >= 2 {
             await apply(pts)
+            return
         }
+        // Final fallback for currencies mempool doesn't serve (BRL/INR/…), whose
+        // series is DB-daily (too sparse for a 24h slice): derive the 24h shape from
+        // the USD history scaled by today's FX ratio. BTC's 24h move is global, so
+        // USD x FX reproduces the correct shape and up/down color.
+        if let pts = await fetchDerived24h(forceRefresh: forceRefresh), pts.count >= 2 {
+            await apply(pts)
+        }
+    }
+
+    /// USD-24h x FX fallback for non-mempool currencies (see `load`).
+    private func fetchDerived24h(forceRefresh: Bool) async -> [Sample]? {
+        guard currency.uppercased() != "USD" else { return nil }
+        let usdSeries = forceRefresh
+            ? await HistoricalPriceStore.shared.refreshedSeries(for: "USD")
+            : await HistoricalPriceStore.shared.series(for: "USD")
+        guard let fx = await HistoricalPriceStore.latestFXRatio(currency: currency), fx > 0,
+              let usd24 = last24h(from: usdSeries), usd24.count >= 2 else { return nil }
+        return usd24.map { Sample(id: $0.id, date: $0.date, value: $0.value * fx) }
     }
 
     /// Slice the full ascending history to the trailing 24h and re-index it into
@@ -172,6 +201,7 @@ struct PriceSparkline: View {
         // Persist so the next launch can render this instantly (see `init`).
         saveSnapshot(pts)
         await MainActor.run {
+            let isCurrencySwitch = samplesCurrency != currency
             if samples.isEmpty {
                 // First appearance: the y-domain is set instantly and the chart
                 // fades in via `.transition(.opacity)`. Nothing morphs, so the
@@ -181,14 +211,13 @@ struct PriceSparkline: View {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     self.samples = pts
                 }
-            } else {
-                // Refresh or currency switch: update the y-domain AND the data in
-                // ONE non-animated transaction. If the domain snapped to the new
-                // currency while the line animated from the old currency's values,
-                // those old values fall outside the new domain and the line shoots
-                // up out of frame before settling — the "jump". Swapping both
-                // together with animations disabled keeps domain and data
-                // consistent on every frame, so the chart updates cleanly.
+            } else if isCurrencySwitch {
+                // Currency switch: the domain jumps to a whole new price scale, so
+                // swap the y-domain AND data in ONE non-animated transaction. If the
+                // domain snapped to the new currency while the line animated from the
+                // old currency's values, those old values fall outside the new domain
+                // and the line shoots out of frame before settling — the "jump".
+                // Disabling animations keeps domain and data consistent every frame.
                 var tx = Transaction()
                 tx.disablesAnimations = true
                 withTransaction(tx) {
@@ -196,7 +225,21 @@ struct PriceSparkline: View {
                     self.yHi = upper
                     self.samples = pts
                 }
+            } else {
+                // Same-currency refresh (periodic tick / foreground return): the 24h
+                // shape barely moves and the domain only inches, so morph the line
+                // smoothly to the new state instead of hard-replacing it. The marks
+                // are matched by `id`, so Charts interpolates each point's position;
+                // the y-domain animates in the SAME transaction so domain and line
+                // stay consistent and the line never leaves the frame. This is the
+                // pleasant little "settle into the new value" animation on refresh.
+                withAnimation(.easeInOut(duration: 0.6)) {
+                    self.yLo = lower
+                    self.yHi = upper
+                    self.samples = pts
+                }
             }
+            self.samplesCurrency = currency
         }
         // Heartbeat so a refresh is observable in Console (Logger category
         // "Sparkline"). `.debug` ⇒ no noise in release builds.
