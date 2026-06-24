@@ -156,21 +156,6 @@ struct SettingsView: View {
                             }
                         }
 
-                        // MARK: - Support
-                        SettingsSection(title: "Support") {
-                            Button {
-                                if let url = URL(string: "mailto:miotares@proton.me?subject=Bitcoin%20Insight%20Feedback") {
-                                    openURL(url)
-                                }
-                            } label: {
-                                SettingsRow(
-                                    title: "Send Feedback",
-                                    showChevron: true
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-
                         // MARK: - About
                         SettingsSection(title: "About") {
                             SettingsRow(title: "Version", value: appVersion)
@@ -193,6 +178,21 @@ struct SettingsView: View {
                             Divider().padding(.leading, 16)
 
                             SettingsRow(title: "Made for Bitcoiners", value: "⚡️")
+                        }
+
+                        // MARK: - Support
+                        SettingsSection(title: "Support") {
+                            Button {
+                                if let url = URL(string: "mailto:miotares@proton.me?subject=Bitcoin%20Insight%20Feedback") {
+                                    openURL(url)
+                                }
+                            } label: {
+                                SettingsRow(
+                                    title: "Send Feedback",
+                                    showChevron: true
+                                )
+                            }
+                            .buttonStyle(.plain)
                         }
 
                         Spacer(minLength: 40)
