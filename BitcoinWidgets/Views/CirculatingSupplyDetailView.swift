@@ -12,7 +12,10 @@ struct CirculatingSupplyDetailView: View {
     @State private var blockHeight: Int?
     @State private var circulatingSupply: Double = 0
     @State private var percentMined: Double = 0
-    
+    /// True while the user is finger-scrubbing the emission chart — disables page
+    /// scrolling for that duration so the drag isn't torn between scroll and scrub.
+    @State private var isScrubbingChart = false
+
     var body: some View {
         ZStack {
             AnimatedBackgroundView()
@@ -58,21 +61,18 @@ struct CirculatingSupplyDetailView: View {
                     .padding(.horizontal)
                     
                     // MARK: - Emission Chart
+                    // The chart owns its header (the "Emission Schedule" title swaps to
+                    // the live readout while scrubbing), so no separate heading here.
                     if let height = blockHeight {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Emission Schedule")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
-                            
-                            HalvingChart(currentBlockHeight: height)
-                        }
-                        .card(padding: Theme.Spacing.lg)
-                        .padding(.horizontal)
+                        HalvingChart(currentBlockHeight: height, isScrubbing: $isScrubbingChart)
+                            .card(padding: Theme.Spacing.lg)
+                            .padding(.horizontal)
                     }
                 }
                 .padding(.bottom, 40)
             }
             .scrollContentBackground(.hidden)
+            .scrollDisabled(isScrubbingChart)
             .navigationTitle("Supply")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {

@@ -116,6 +116,33 @@ struct WidgetSparkline: View {
     }
 }
 
+/// Monochrome sparkline for lock-screen (accessoryRectangular) widgets. The lock
+/// screen renders in `.vibrant` mode (color is stripped), so this draws a single
+/// tint-following line via `.foregroundStyle(.primary)` — no green/red. Direction
+/// reads from the shape itself.
+struct LockSparkline: View {
+    let values: [Double]
+
+    private struct Pt: Identifiable { let id: Int; let v: Double }
+    private var points: [Pt] { values.enumerated().map { Pt(id: $0.offset, v: $0.element) } }
+
+    var body: some View {
+        if values.count >= 2, let lo = values.min(), let hi = values.max() {
+            let pad = (hi - lo) == 0 ? max(abs(hi) * 0.05, 1) : (hi - lo) * 0.15
+            Chart(points) { p in
+                LineMark(x: .value("i", p.id), y: .value("v", p.v))
+                    .interpolationMethod(.catmullRom)
+                    .lineStyle(StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+            .foregroundStyle(.primary)
+            .chartXAxis(.hidden)
+            .chartYAxis(.hidden)
+            .chartYScale(domain: (lo - pad)...(hi + pad))
+            .chartLegend(.hidden)
+        }
+    }
+}
+
 struct StaleDot: View {
     let stale: Bool
     var body: some View {

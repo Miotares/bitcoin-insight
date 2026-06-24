@@ -11,6 +11,7 @@ struct InsightWidgetsBundle: WidgetBundle {
     var body: some Widget {
         // Single metrics
         InsightWidgets()        // price
+        PriceChartWidget()      // price + 24h chart
         BlockHeightWidget()
         HalvingWidget()
         MoscowWidget()

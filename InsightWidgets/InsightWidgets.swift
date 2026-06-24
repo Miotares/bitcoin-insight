@@ -194,6 +194,20 @@ struct InsightWidgets: Widget {
     }
 }
 
+/// Price with a 24h trend sparkline — clean price + chart, no fee/block clutter.
+struct PriceChartWidget: Widget {
+    let kind = "InsightPriceChart"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            PriceChartWidgetView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Price · Chart")
+        .description("BTC price with a 24-hour trend line.")
+        .supportedFamilies([.systemSmall, .accessoryRectangular])
+    }
+}
+
 /// No-price network widget: block height, fees, halving %.
 struct NetworkWidget: Widget {
     let kind = "InsightNetwork"
@@ -358,6 +372,31 @@ struct OverviewWidget: Widget {
 
 #Preview("Network", as: .systemMedium) {
     NetworkWidget()
+} timeline: {
+    StatsEntry(date: .now, snapshot: .preview, currency: "USD", isPremium: true, isStale: false)
+}
+
+// Lock-screen widgets with the text-left / monochrome-sparkline-right layout.
+#Preview("Mempool Lock", as: .accessoryRectangular) {
+    MempoolWidget()
+} timeline: {
+    StatsEntry(date: .now, snapshot: .preview, currency: "USD", isPremium: true, isStale: false)
+}
+
+#Preview("Hashrate Lock", as: .accessoryRectangular) {
+    HashrateWidget()
+} timeline: {
+    StatsEntry(date: .now, snapshot: .preview, currency: "USD", isPremium: true, isStale: false)
+}
+
+#Preview("Price Chart Lock", as: .accessoryRectangular) {
+    PriceChartWidget()
+} timeline: {
+    StatsEntry(date: .now, snapshot: .preview, currency: "USD", isPremium: true, isStale: false)
+}
+
+#Preview("Price Chart Home", as: .systemSmall) {
+    PriceChartWidget()
 } timeline: {
     StatsEntry(date: .now, snapshot: .preview, currency: "USD", isPremium: true, isStale: false)
 }

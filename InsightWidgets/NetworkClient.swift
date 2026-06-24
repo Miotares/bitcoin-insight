@@ -80,8 +80,18 @@ enum NetworkClient {
         // never blocks the headline stats.
         if let spark = await fetchSparklines() {
             snapshot.mempoolSeries = spark.mempool.count >= 2 ? spark.mempool : nil
-            snapshot.priceUsdSeries = spark.priceUsd.count >= 2 ? spark.priceUsd : nil
             snapshot.hashrateSeries = spark.hashrate.count >= 2 ? spark.hashrate : nil
+            // RPC price is a FALLBACK only — it comes from network_stats_history, which
+            // is still filling, so it can be sparse for the first 24h after deploy.
+            snapshot.priceUsdSeries = spark.priceUsd.count >= 2 ? spark.priceUsd : nil
+        }
+
+        // Price line: use the SAME dense 24h source as the in-app Dashboard sparkline
+        // (CoinGecko market_chart days=1, ~5-min granularity) so it is full-resolution
+        // immediately instead of waiting for network_stats_history to accumulate.
+        // Overrides the sparse RPC price above; falls back to it if CoinGecko fails.
+        if let dense = await fetch24hPriceSeriesUSD() {
+            snapshot.priceUsdSeries = dense
         }
 
         return snapshot
@@ -109,5 +119,33 @@ enum NetworkClient {
         } catch {
             return nil
         }
+    }
+
+    // MARK: - Dense 24h price series (matches the Dashboard sparkline)
+
+    /// Fetches the trailing-24h USD price at ~5-min granularity from CoinGecko — the
+    /// same source the in-app Dashboard sparkline uses — and downsamples it to keep
+    /// the widget entry small. Returns nil on any failure.
+    private static func fetch24hPriceSeriesUSD() async -> [Double]? {
+        guard let url = URL(string:
+            "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=1") else { return nil }
+        struct Response: Decodable { let prices: [[Double]] }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let decoded = try JSONDecoder().decode(Response.self, from: data)
+            let values = decoded.prices.compactMap { $0.count == 2 && $0[1] > 0 ? $0[1] : nil }
+            guard values.count >= 2 else { return nil }
+            return downsample(values, to: 48)
+        } catch {
+            return nil
+        }
+    }
+
+    /// Evenly-spaced downsample to at most `target` points, always keeping the first
+    /// and last sample so the line's endpoints (and thus its up/down color) stay true.
+    private static func downsample(_ values: [Double], to target: Int) -> [Double] {
+        guard values.count > target, target > 1 else { return values }
+        let step = Double(values.count - 1) / Double(target - 1)
+        return (0..<target).map { values[Int((Double($0) * step).rounded())] }
     }
 }

@@ -98,10 +98,16 @@ struct HashrateWidgetView: View {
         Gate(family: family, entry: entry) { s in
             switch family {
             case .accessoryRectangular:
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Hashrate").fontWeight(.semibold)
-                    Text(WidgetFormat.hashrate(s.hashrate))
-                }.font(.caption)
+                HStack(alignment: .center, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Hashrate").fontWeight(.semibold)
+                        Text(WidgetFormat.hashrate(s.hashrate))
+                    }.font(.caption)
+                    if let series = s.hashrateSeries {
+                        Spacer(minLength: 4)
+                        LockSparkline(values: series).frame(width: 58)
+                    }
+                }
             default:
                 VStack(alignment: .leading, spacing: 0) {
                     HomeLabel("Hashrate")
@@ -128,10 +134,17 @@ struct MempoolWidgetView: View {
         Gate(family: family, entry: entry) { s in
             switch family {
             case .accessoryRectangular:
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Mempool").fontWeight(.semibold)
-                    Text("\(WidgetFormat.number(s.mempoolCount)) txs")
-                }.font(.caption)
+                // TEST: text on the left, tiny monochrome 24h sparkline on the right.
+                HStack(alignment: .center, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Mempool").fontWeight(.semibold)
+                        Text("\(WidgetFormat.number(s.mempoolCount)) txs")
+                    }.font(.caption)
+                    if let series = s.mempoolSeries {
+                        Spacer(minLength: 4)
+                        LockSparkline(values: series).frame(width: 58)
+                    }
+                }
             default:
                 VStack(alignment: .leading, spacing: 0) {
                     HomeLabel("Mempool")
@@ -139,6 +152,41 @@ struct MempoolWidgetView: View {
                     BigValue(text: WidgetFormat.number(s.mempoolCount), size: 28)
                     Text("unconfirmed txs").font(.caption2).foregroundStyle(.secondary)
                     if let series = s.mempoolSeries {
+                        Spacer(minLength: 8)
+                        WidgetSparkline(values: series)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Price + Chart
+
+struct PriceChartWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    var entry: StatsEntry
+    var body: some View {
+        Gate(family: family, entry: entry) { s in
+            let price = s.price(for: entry.currency)
+            switch family {
+            case .accessoryRectangular:
+                HStack(alignment: .center, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("BTC/\(entry.currency.uppercased())").fontWeight(.semibold)
+                        Text(WidgetFormat.price(price, currency: entry.currency))
+                    }.font(.caption).lineLimit(1)
+                    if let series = s.priceUsdSeries {
+                        Spacer(minLength: 4)
+                        LockSparkline(values: series).frame(width: 58)
+                    }
+                }
+            default: // systemSmall (home)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 6) { BrandLogo(size: 16); HomeLabel("BTC/\(entry.currency.uppercased())") }
+                    Spacer(minLength: 6)
+                    BigValue(text: WidgetFormat.price(price, currency: entry.currency), size: 28)
+                    if let series = s.priceUsdSeries {
                         Spacer(minLength: 8)
                         WidgetSparkline(values: series)
                     }

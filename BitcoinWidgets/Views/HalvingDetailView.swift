@@ -10,7 +10,10 @@ import Combine
 
 struct HalvingDetailView: View {
     @State private var blockHeight: Int?
-    
+    /// True while the user is finger-scrubbing the reward chart — disables page
+    /// scrolling for that duration so the drag isn't torn between scroll and scrub.
+    @State private var isScrubbingChart = false
+
     private var halvingInterval: Int { 210_000 }
     
     private var nextHalvingHeight: Int {
@@ -181,21 +184,18 @@ struct HalvingDetailView: View {
                     .padding(.horizontal)
 
                     // MARK: - Reward Chart
+                    // The chart owns its header (the "Block Reward Schedule" title swaps
+                    // to the live readout while scrubbing), so no separate heading here.
                     if let height = blockHeight {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Block Reward Schedule")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
-                            
-                            HalvingRewardChart(currentBlockHeight: height)
-                        }
-                        .card(padding: Theme.Spacing.lg)
-                        .padding(.horizontal)
+                        HalvingRewardChart(currentBlockHeight: height, isScrubbing: $isScrubbingChart)
+                            .card(padding: Theme.Spacing.lg)
+                            .padding(.horizontal)
                     }
                 }
                 .padding(.bottom, 40)
             }
             .scrollContentBackground(.hidden)
+            .scrollDisabled(isScrubbingChart)
             .navigationTitle("Halving")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
