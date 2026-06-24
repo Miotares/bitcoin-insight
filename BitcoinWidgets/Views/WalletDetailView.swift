@@ -75,6 +75,11 @@ struct WalletDetailView: View {
                             Text(currentWallet.type.displayName)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            if settings.hideBalances {
+                                Image(systemName: settings.balancesHidden ? "eye.slash.fill" : "eye.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
                             Spacer()
                             if let scanned = currentWallet.lastScanned {
                                 Text("Updated \(scanned, format: .relative(presentation: .named))")
@@ -88,11 +93,13 @@ struct WalletDetailView: View {
                             .minimumScaleFactor(0.6)
                             .lineLimit(1)
                             .contentTransition(.numericText())
+                            .balanceBlur(hidden: settings.balancesHidden)
 
                         Text(Formatters.formatCurrency(value: fiatValue, currencyCode: settings.preferredCurrency))
                             .font(.title3)
                             .foregroundStyle(.secondary)
                             .contentTransition(.numericText())
+                            .balanceBlur(hidden: settings.balancesHidden)
 
                         Divider()
 
@@ -119,10 +126,17 @@ struct WalletDetailView: View {
                                     .foregroundStyle(.secondary)
                                 Text(Formatters.formatSats(currentWallet.totalBalanceSats))
                                     .font(.headline)
+                                    .balanceBlur(hidden: settings.balancesHidden)
                             }
                         }
                     }
                     .card(padding: Theme.Spacing.xl)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard settings.hideBalances else { return }
+                        Haptics.selection()
+                        settings.balancesRevealed.toggle()
+                    }
                     .padding(.horizontal)
 
                     // MARK: - Tab Selector
@@ -178,6 +192,16 @@ struct WalletDetailView: View {
                         ProgressView()
                             .scaleEffect(0.8)
                             .tint(Color.bitcoinOrange)
+                    }
+                    if settings.hideBalances {
+                        Button {
+                            Haptics.selection()
+                            settings.balancesRevealed.toggle()
+                        } label: {
+                            Image(systemName: settings.balancesHidden ? "eye.slash" : "eye")
+                                .font(.title3)
+                                .foregroundStyle(Color.bitcoinOrange)
+                        }
                     }
                     Menu {
                         Button {
@@ -249,7 +273,8 @@ struct WalletDetailView: View {
                         tx: tx,
                         currency: settings.preferredCurrency,
                         btcPrice: pricePerBtc,
-                        showCopied: copiedTxID == tx.txid
+                        showCopied: copiedTxID == tx.txid,
+                        hidden: settings.balancesHidden
                     )
                     .padding(.horizontal, 20)
                     .padding(.vertical, 4)
@@ -356,6 +381,7 @@ struct WalletDetailView: View {
                             Text(Formatters.formatSats(addr.balanceSats))
                                 .font(.caption)
                                 .fontWeight(.semibold)
+                                .balanceBlur(hidden: settings.balancesHidden)
                             Text("\(addr.txCount) tx")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)

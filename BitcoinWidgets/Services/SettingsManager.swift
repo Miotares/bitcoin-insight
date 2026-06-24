@@ -42,6 +42,24 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    /// Privacy: when on, private wallet amounts (BTC + fiat) are blurred and start
+    /// hidden on every app launch. The user taps a balance to reveal them.
+    @Published var hideBalances: Bool {
+        didSet {
+            UserDefaults.standard.set(hideBalances, forKey: "hideBalances")
+            // Re-hide immediately when the user turns the setting on.
+            if hideBalances { balancesRevealed = false }
+        }
+    }
+
+    /// Session-only reveal flag. Never persisted: starts hidden on every launch and
+    /// is reset to hidden whenever the app leaves the foreground (so the app-switcher
+    /// snapshot and the next open both start blurred). Tapping a balance toggles it.
+    @Published var balancesRevealed: Bool = false
+
+    /// True when private wallet amounts should be visually blurred right now.
+    var balancesHidden: Bool { hideBalances && !balancesRevealed }
+
     /// Live BTC prices per currency code, written by DashboardViewModel after every fetch.
     /// Never persisted — starts empty, populates within seconds of app launch.
     @Published var btcPrices: [String: Double] = [:]
@@ -70,6 +88,7 @@ class SettingsManager: ObservableObject {
         self.showWalletTab = UserDefaults.standard.object(forKey: "showWalletTab") as? Bool ?? true
         self.showExploreTab = UserDefaults.standard.object(forKey: "showExploreTab") as? Bool ?? true
         self.gapLimit = UserDefaults.standard.object(forKey: "gapLimit") as? Int ?? 20
+        self.hideBalances = UserDefaults.standard.bool(forKey: "hideBalances")
         WidgetBridge.setCurrency(preferredCurrency)   // mirror currency to widgets at launch
     }
 }

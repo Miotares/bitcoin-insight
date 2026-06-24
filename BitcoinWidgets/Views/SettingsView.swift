@@ -99,8 +99,8 @@ struct SettingsView: View {
                             premiumPromoBanner
                         }
 
-                        // MARK: - Preferences
-                        SettingsSection(title: "Preferences") {
+                        // MARK: - General
+                        SettingsSection(title: "General") {
                             SettingsRow(title: "Currency") {
                                 Picker("", selection: $settings.preferredCurrency) {
                                     Text("USD ($)").tag("USD")
@@ -128,6 +128,15 @@ struct SettingsView: View {
 
                             Divider().padding(.leading, 16)
 
+                            SettingsRow(title: "Haptics") {
+                                Toggle("", isOn: $settings.hapticsEnabled)
+                                    .labelsHidden()
+                                    .tint(Color.bitcoinOrange)
+                            }
+                        }
+
+                        // MARK: - Tabs
+                        SettingsSection(title: "Tabs") {
                             SettingsRow(title: "Wallet Tab") {
                                 Toggle("", isOn: $settings.showWalletTab)
                                     .labelsHidden()
@@ -141,8 +150,17 @@ struct SettingsView: View {
                                     .labelsHidden()
                                     .tint(Color.bitcoinOrange)
                             }
+                        }
 
-                            if settings.showWalletTab {
+                        // MARK: - Wallet
+                        if settings.showWalletTab {
+                            SettingsSection(title: "Wallet") {
+                                SettingsRow(title: "Hide Balances") {
+                                    Toggle("", isOn: $settings.hideBalances)
+                                        .labelsHidden()
+                                        .tint(Color.bitcoinOrange)
+                                }
+
                                 Divider().padding(.leading, 16)
 
                                 SettingsRow(title: "Gap Limit") {
@@ -153,14 +171,6 @@ struct SettingsView: View {
                                     }
                                     .tint(.secondary)
                                 }
-                            }
-
-                            Divider().padding(.leading, 16)
-
-                            SettingsRow(title: "Haptics") {
-                                Toggle("", isOn: $settings.hapticsEnabled)
-                                    .labelsHidden()
-                                    .tint(Color.bitcoinOrange)
                             }
                         }
 

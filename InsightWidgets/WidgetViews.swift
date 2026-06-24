@@ -173,16 +173,26 @@ struct LockedView: View {
     }
 }
 
-/// Gates every widget on premium + data.
+/// Deep-link from a single-metric widget into its matching in-app detail view, e.g.
+/// `bitcoininsight://mempool`. Multi-metric bundle widgets pass nil — a tap then
+/// just opens the app to whatever tab was last open.
+enum WidgetLink {
+    static func detail(_ host: String) -> URL? { URL(string: "bitcoininsight://\(host)") }
+}
+
+/// Gates every widget on premium + data. When unlocked, an optional `deepLink` makes
+/// the whole widget open the matching in-app detail view on tap; the locked state
+/// keeps its own paywall link, so the two never conflict.
 struct WidgetGate<Content: View>: View {
     let family: WidgetFamily
     let entry: StatsEntry
+    var deepLink: URL? = nil
     @ViewBuilder var content: (NetworkSnapshot) -> Content
     var body: some View {
         if !entry.isPremium {
             LockedView(family: family)
         } else if let snap = entry.snapshot {
-            content(snap)
+            content(snap).widgetURL(deepLink)
         } else {
             ProgressView()
         }
@@ -196,7 +206,7 @@ struct PriceWidgetView: View {
     var entry: StatsEntry
 
     var body: some View {
-        WidgetGate(family: family, entry: entry) { snap in
+        WidgetGate(family: family, entry: entry, deepLink: WidgetLink.detail("price")) { snap in
             let price = snap.price(for: entry.currency)
             switch family {
 
@@ -299,7 +309,7 @@ struct HalvingWidgetView: View {
     var entry: StatsEntry
 
     var body: some View {
-        WidgetGate(family: family, entry: entry) { snap in
+        WidgetGate(family: family, entry: entry, deepLink: WidgetLink.detail("halving")) { snap in
             let pct = Int(snap.halvingProgress * 100)
             let left = WidgetFormat.number(snap.blocksUntilHalving)
             switch family {
@@ -344,7 +354,7 @@ struct BlockWidgetView: View {
     var entry: StatsEntry
 
     var body: some View {
-        WidgetGate(family: family, entry: entry) { snap in
+        WidgetGate(family: family, entry: entry, deepLink: WidgetLink.detail("block")) { snap in
             switch family {
 
             case .accessoryInline:

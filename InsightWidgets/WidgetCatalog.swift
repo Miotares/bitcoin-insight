@@ -9,14 +9,17 @@
 import WidgetKit
 import SwiftUI
 
-// Small gate wrapper to keep each view tidy.
+// Small gate wrapper to keep each view tidy. An optional `deepLink` makes an
+// unlocked single-metric widget open its matching in-app detail view on tap; the
+// locked state keeps its own paywall link.
 private struct Gate<Content: View>: View {
     let family: WidgetFamily
     let entry: StatsEntry
+    var deepLink: URL? = nil
     @ViewBuilder var content: (NetworkSnapshot) -> Content
     var body: some View {
         if !entry.isPremium { LockedView(family: family) }
-        else if let s = entry.snapshot { content(s) }
+        else if let s = entry.snapshot { content(s).widgetURL(deepLink) }
         else { ProgressView() }
     }
 }
@@ -27,7 +30,7 @@ struct MoscowWidgetView: View {
     @Environment(\.widgetFamily) private var family
     var entry: StatsEntry
     var body: some View {
-        Gate(family: family, entry: entry) { s in
+        Gate(family: family, entry: entry, deepLink: WidgetLink.detail("moscow")) { s in
             switch family {
             case .accessoryInline:
                 Text("\(WidgetFormat.number(s.moscowTime(for: entry.currency))) sats/\(entry.currency.uppercased())")
@@ -70,7 +73,7 @@ struct FeesWidgetView: View {
     @Environment(\.widgetFamily) private var family
     var entry: StatsEntry
     var body: some View {
-        Gate(family: family, entry: entry) { s in
+        Gate(family: family, entry: entry, deepLink: WidgetLink.detail("fees")) { s in
             switch family {
             case .accessoryRectangular:
                 VStack(alignment: .leading, spacing: 2) {
@@ -95,7 +98,7 @@ struct HashrateWidgetView: View {
     @Environment(\.widgetFamily) private var family
     var entry: StatsEntry
     var body: some View {
-        Gate(family: family, entry: entry) { s in
+        Gate(family: family, entry: entry, deepLink: WidgetLink.detail("hashrate")) { s in
             switch family {
             case .accessoryRectangular:
                 HStack(alignment: .center, spacing: 8) {
@@ -131,7 +134,7 @@ struct MempoolWidgetView: View {
     @Environment(\.widgetFamily) private var family
     var entry: StatsEntry
     var body: some View {
-        Gate(family: family, entry: entry) { s in
+        Gate(family: family, entry: entry, deepLink: WidgetLink.detail("mempool")) { s in
             switch family {
             case .accessoryRectangular:
                 // TEST: text on the left, tiny monochrome 24h sparkline on the right.
@@ -167,7 +170,7 @@ struct PriceChartWidgetView: View {
     @Environment(\.widgetFamily) private var family
     var entry: StatsEntry
     var body: some View {
-        Gate(family: family, entry: entry) { s in
+        Gate(family: family, entry: entry, deepLink: WidgetLink.detail("price")) { s in
             let price = s.price(for: entry.currency)
             switch family {
             case .accessoryRectangular:
@@ -202,7 +205,7 @@ struct SupplyWidgetView: View {
     @Environment(\.widgetFamily) private var family
     var entry: StatsEntry
     var body: some View {
-        Gate(family: family, entry: entry) { s in
+        Gate(family: family, entry: entry, deepLink: WidgetLink.detail("supply")) { s in
             let pct = String(format: "%.2f", s.supplyPercent)
             let mined = String(format: "%.1fM", s.circulatingSupply / 1_000_000)
             switch family {
@@ -232,7 +235,7 @@ struct LightningWidgetView: View {
     @Environment(\.widgetFamily) private var family
     var entry: StatsEntry
     var body: some View {
-        Gate(family: family, entry: entry) { s in
+        Gate(family: family, entry: entry, deepLink: WidgetLink.detail("lightning")) { s in
             switch family {
             case .systemMedium:
                 VStack(alignment: .leading, spacing: 0) {

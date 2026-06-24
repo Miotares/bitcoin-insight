@@ -38,6 +38,20 @@ struct WalletTabView: View {
                         .foregroundStyle(Color.bitcoinOrange)
                     }
                 } else {
+                    // Reveal toggle — mirrors the tap-on-balance affordance. Only
+                    // shown when the privacy setting is on and there's something to hide.
+                    if settings.hideBalances && !viewModel.wallets.isEmpty {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                Haptics.selection()
+                                settings.balancesRevealed.toggle()
+                            } label: {
+                                Image(systemName: settings.balancesHidden ? "eye.slash" : "eye")
+                                    .font(.title3)
+                                    .foregroundStyle(Color.bitcoinOrange)
+                            }
+                        }
+                    }
                     // Reorder only available when 2+ wallets AND no active sync.
                     // A sync pushes Combine updates into the List's ForEach which
                     // corrupts SwiftUI's editMode diff and causes the stuck-reorder bug.
@@ -120,7 +134,7 @@ struct WalletTabView: View {
 
                     ForEach(viewModel.wallets) { wallet in
                         NavigationLink(destination: WalletDetailView(wallet: wallet, viewModel: viewModel)) {
-                            WalletCard(wallet: wallet, viewModel: viewModel, currency: settings.preferredCurrency)
+                            WalletCard(wallet: wallet, viewModel: viewModel, currency: settings.preferredCurrency, hidden: settings.balancesHidden)
                         }
                         .buttonStyle(CardButtonStyle())
                         .padding(.horizontal, 20)
@@ -158,7 +172,7 @@ struct WalletTabView: View {
 
             List {
                 ForEach(viewModel.wallets) { wallet in
-                    WalletCard(wallet: wallet, viewModel: viewModel, currency: settings.preferredCurrency)
+                    WalletCard(wallet: wallet, viewModel: viewModel, currency: settings.preferredCurrency, hidden: settings.balancesHidden)
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
@@ -182,7 +196,15 @@ struct WalletTabView: View {
 
     private var balanceHeroCard: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            SectionLabel("Total Balance")
+            HStack(spacing: 6) {
+                SectionLabel("Total Balance")
+                if settings.hideBalances {
+                    Image(systemName: settings.balancesHidden ? "eye.slash.fill" : "eye.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer(minLength: 0)
+            }
 
             Text(Formatters.formatBTC(totalBTC))
                 .font(.heroValue)
@@ -190,6 +212,7 @@ struct WalletTabView: View {
                 .lineLimit(1)
                 .contentTransition(.numericText())
                 .animation(.snappy, value: totalBTC)
+                .balanceBlur(hidden: settings.balancesHidden)
 
             if viewModel.totalBalanceFiat > 0 {
                 Text(Formatters.formatCurrency(
@@ -200,6 +223,7 @@ struct WalletTabView: View {
                 .foregroundStyle(.secondary)
                 .contentTransition(.numericText())
                 .animation(.snappy, value: viewModel.totalBalanceFiat)
+                .balanceBlur(hidden: settings.balancesHidden)
             }
 
             if viewModel.wallets.contains(where: \.isSyncing) {
@@ -222,6 +246,12 @@ struct WalletTabView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard settings.hideBalances else { return }
+            Haptics.selection()
+            settings.balancesRevealed.toggle()
+        }
     }
 
     // MARK: - Empty State
@@ -267,6 +297,7 @@ struct WalletCard: View {
     let wallet: Wallet
     @ObservedObject var viewModel: WalletViewModel
     let currency: String
+    var hidden: Bool = false
 
     private var btcBalance: Double { Double(wallet.totalBalanceSats) / 100_000_000.0 }
     private var fiatValue: Double {
@@ -312,12 +343,14 @@ struct WalletCard: View {
                         .fontWeight(.bold)
                         .contentTransition(.numericText())
                         .animation(.snappy, value: btcBalance)
+                        .balanceBlur(hidden: hidden)
 
                     Text(Formatters.formatCurrency(value: fiatValue, currencyCode: currency))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .contentTransition(.numericText())
                         .animation(.snappy, value: fiatValue)
+                        .balanceBlur(hidden: hidden)
                 }
 
                 Spacer()
@@ -343,5 +376,19 @@ struct WalletCard: View {
         .padding(Theme.Spacing.xl)
         .background(Theme.Surface.fill)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+    }
+}
+
+// MARK: - Balance Privacy
+
+extension View {
+    /// Blurs a private wallet amount when the user has balances hidden. The amount
+    /// keeps its layout footprint; only the glyphs are obscured. Driven by a plain
+    /// `Bool` so callers don't need to observe `SettingsManager` themselves.
+    @ViewBuilder
+    func balanceBlur(hidden: Bool) -> some View {
+        self
+            .blur(radius: hidden ? 9 : 0)
+            .animation(.easeInOut(duration: 0.25), value: hidden)
     }
 }

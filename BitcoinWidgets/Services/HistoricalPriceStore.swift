@@ -66,6 +66,30 @@ actor HistoricalPriceStore {
         await fetchCoalesced(currency.uppercased(), ignoreCache: true)
     }
 
+    /// A trailing-24h INTRADAY series for `currency`, for the price detail chart's
+    /// "24H" range. Mirrors the Dashboard sparkline's source priority so all 19
+    /// currencies get a smooth intraday curve (not a near-flat daily line):
+    /// CoinGecko's ~5-min `days=1` chart (serves all currencies) → mempool's hourly
+    /// 24h slice (the 7 it serves) → the USD-24h shape × today's FX ratio (the other
+    /// 12, since BTC's 24h move is global). Returns [] only if every source fails.
+    func intraday24h(for currency: String) async -> [Point] {
+        let cur = currency.uppercased()
+        let cg = await Self.fetchCoinGecko24h(currency: cur)
+        if cg.count >= 2 { return cg }
+        // Fallback: mempool's hourly recent window, sliced to 24h. For the 12
+        // currencies it doesn't serve the shared series is DB-daily (~2 pts/24h),
+        // so require a genuinely intraday count before using it.
+        let sliced = Self.slice24h(await series(for: cur))
+        if sliced.count >= 6 { return sliced }
+        if cur != "USD", let fx = await Self.latestFXRatio(currency: cur), fx > 0 {
+            let usd = Self.slice24h(await series(for: "USD"))
+            if usd.count >= 2 {
+                return usd.map { Point(date: $0.date, price: $0.price * fx) }
+            }
+        }
+        return sliced   // whatever the (possibly sparse) mempool slice had beats nothing
+    }
+
     private func fetchCoalesced(_ key: String, ignoreCache: Bool) async -> [Point] {
         if !ignoreCache, let entry = cache[key], Date().timeIntervalSince(entry.fetchedAt) < ttl {
             return entry.points
@@ -112,6 +136,33 @@ actor HistoricalPriceStore {
         } catch {
             return []
         }
+    }
+
+    // MARK: - Intraday (24h) helpers
+
+    /// CoinGecko's trailing-24h chart (~5-min granularity, serves all currencies).
+    /// [] on any failure so `intraday24h` falls back to mempool / FX.
+    private static func fetchCoinGecko24h(currency: String) async -> [Point] {
+        let cur = currency.lowercased()
+        guard let url = URL(string: "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=\(cur)&days=1") else { return [] }
+        struct Response: Decodable { let prices: [[Double]] }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let decoded = try JSONDecoder().decode(Response.self, from: data)
+            return decoded.prices.compactMap { pair -> Point? in
+                guard pair.count == 2, pair[1] > 0 else { return nil }   // CoinGecko timestamps are ms
+                return Point(date: Date(timeIntervalSince1970: pair[0] / 1000), price: pair[1])
+            }
+        } catch {
+            return []
+        }
+    }
+
+    /// Trailing-24h slice of an ascending full history.
+    private static func slice24h(_ series: [Point]) -> [Point] {
+        guard let latest = series.last?.date else { return [] }
+        let cutoff = latest.addingTimeInterval(-24 * 3_600)
+        return series.filter { $0.date >= cutoff }
     }
 
     // MARK: - Supabase price_history (dense daily, deep past)

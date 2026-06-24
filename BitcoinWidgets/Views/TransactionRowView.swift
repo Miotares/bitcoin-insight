@@ -10,6 +10,7 @@ struct TransactionRowView: View {
     let currency: String
     let btcPrice: Double
     var showCopied: Bool = false
+    var hidden: Bool = false
 
     private var isReceived: Bool { tx.valueSats >= 0 }
     private var btcValue: Double { Double(abs(tx.valueSats)) / 100_000_000.0 }
@@ -59,10 +60,12 @@ struct TransactionRowView: View {
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(isReceived ? .green : .red)
+                    .balanceBlur(hidden: hidden)
 
                 Text(Formatters.formatCurrency(value: fiatValue, currencyCode: currency))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .balanceBlur(hidden: hidden)
             }
         }
         .padding(.vertical, 4)

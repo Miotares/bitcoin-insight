@@ -34,6 +34,7 @@ struct PriceChart: View {
     /// Lookback windows. The endpoint returns the whole history, so these only
     /// filter the cached series.
     enum Range: String, CaseIterable, Identifiable {
+        case d1 = "24H"
         case w1 = "1W"
         case m1 = "1M"
         case y1 = "1Y"
@@ -41,9 +42,11 @@ struct PriceChart: View {
 
         var id: String { rawValue }
 
-        /// Lookback in seconds; nil = entire history.
+        /// Lookback in seconds; nil = entire history. (24H is served by a dedicated
+        /// intraday series, not by filtering the full history — see `rebuildPoints`.)
         var seconds: TimeInterval? {
             switch self {
+            case .d1:  return 24 * 3_600
             case .w1:  return 7 * 86_400
             case .m1:  return 30 * 86_400
             case .y1:  return 365 * 86_400
@@ -60,6 +63,9 @@ struct PriceChart: View {
     @State private var range: Range = .m1
     /// Full fetched price history for `currency` (ascending by date).
     @State private var series: [PricePoint] = []
+    /// Trailing-24h intraday series (CoinGecko ~5-min → mempool/FX fallback) backing
+    /// the "24H" range; loaded alongside `series`.
+    @State private var intraday: [PricePoint] = []
     /// Points for the current range — kept in @State (rebuilt on data/range
     /// change only) so a scrub tick never re-filters/re-maps.
     @State private var points: [ScrubPoint] = []
@@ -84,6 +90,7 @@ struct PriceChart: View {
         .onChange(of: range) { _, _ in
             selected = nil
             isScrubbing = false
+            failed = (range == .d1) ? intraday.isEmpty : series.isEmpty
             rebuildPoints()
         }
         .onChange(of: currency) { _, _ in
@@ -166,6 +173,7 @@ struct PriceChart: View {
 
     private var xFormat: Date.FormatStyle {
         switch range {
+        case .d1:  return Date.FormatStyle.dateTime.hour()
         case .w1:  return Date.FormatStyle.dateTime.month(.abbreviated).day()
         case .m1:  return Date.FormatStyle.dateTime.month(.abbreviated).day()
         case .y1:  return Date.FormatStyle.dateTime.month(.abbreviated)
@@ -175,6 +183,7 @@ struct PriceChart: View {
 
     private var readoutFormat: Date.FormatStyle {
         switch range {
+        case .d1:  return Date.FormatStyle.dateTime.hour().minute()
         case .w1:  return Date.FormatStyle.dateTime.month(.abbreviated).day().hour().minute()
         default:   return Date.FormatStyle.dateTime.year().month(.abbreviated).day()
         }
@@ -184,6 +193,14 @@ struct PriceChart: View {
 
     /// Re-derive `points` from the cached `series` for the current range.
     private func rebuildPoints() {
+        // 24H uses the dedicated intraday series (smooth ~5-min CoinGecko data, or a
+        // mempool/FX fallback) rather than filtering the coarse full history.
+        if range == .d1 {
+            points = intraday.enumerated().map { index, p in
+                ScrubPoint(id: index, date: p.date, value: p.price)
+            }
+            return
+        }
         guard let latest = series.last?.date else {
             points = []
             return
@@ -224,22 +241,36 @@ struct PriceChart: View {
             failed = false
         }
 
-        // Read from the shared mempool cache — the Dashboard sparkline reads the
-        // SAME series, so when it already fetched this currency this is a cache hit
-        // (no second ~1.4 MB download). Returns empty only if mempool was down.
-        let points = await HistoricalPriceStore.shared.series(for: currency)
+        // Both fetched concurrently. The full history (shared mempool+DB cache the
+        // Dashboard sparkline already warmed — usually a cache hit, no second ~1.4 MB
+        // download) backs 1W/1M/1Y/All; a dedicated trailing-24h intraday series backs
+        // "24H". The intraday call's internal mempool fallback shares the same cached
+        // series, so there's no duplicate download.
+        async let intraTask = HistoricalPriceStore.shared.intraday24h(for: currency)
 
+        // Paint the visible (non-24H) range as soon as the full history lands, so the
+        // common case isn't gated on the intraday round-trip the user may not need.
+        // isLoading stays true until both finish, so a 24H tap during the gap shows a
+        // spinner (not a false error); a populated non-24H chart ignores isLoading.
+        let full = await HistoricalPriceStore.shared.series(for: currency)
         await MainActor.run {
-            if points.isEmpty {
-                self.failed = true
-                self.isLoading = false
-            } else {
-                self.series = points.map { PricePoint(date: $0.date, price: $0.price) }
+            self.series = full.map { PricePoint(date: $0.date, price: $0.price) }
+            self.selected = nil
+            self.isScrubbing = false
+            if range != .d1 {
+                self.failed = full.isEmpty
                 rebuildPoints()
-                self.selected = nil
-                self.isScrubbing = false
-                self.isLoading = false
             }
+        }
+
+        let intra = await intraTask
+        await MainActor.run {
+            self.intraday = intra.map { PricePoint(date: $0.date, price: $0.price) }
+            if range == .d1 {
+                self.failed = intra.isEmpty
+                rebuildPoints()
+            }
+            self.isLoading = false
         }
     }
 }

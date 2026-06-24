@@ -3,16 +3,18 @@ import SwiftUI
 struct DashboardView: View {
     @StateObject private var viewModel = DashboardViewModel()
     @EnvironmentObject var settings: SettingsManager
+    @EnvironmentObject var router: AppRouter
+    @State private var path: [DashboardRoute] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 AnimatedBackgroundView()
 
                 ScrollView {
                     VStack(spacing: Theme.Spacing.xxl) {
                         // Hero Price (box-less, typographic) — taps through to the price detail
-                        NavigationLink(destination: PriceDetailView()) {
+                        NavigationLink(value: DashboardRoute.price) {
                             PriceHeroCard(
                                 price: viewModel.livePrice,
                                 currency: settings.preferredCurrency,
@@ -32,35 +34,38 @@ struct DashboardView: View {
                         ) {
                             BlockHeightStatCard(
                                 value: viewModel.blockHeight,
-                                destination: BlockHeightDetailView()
+                                route: .block
                             )
 
                             StatCard(
                                 title: "Mempool",
                                 value: Formatters.formatAmount(viewModel.mempoolTransactions),
-                                subtitle: "txs"
-                            ) { MempoolDetailView() }
+                                subtitle: "txs",
+                                route: .mempool
+                            )
 
                             StatCard(
                                 title: "Difficulty",
-                                value: Formatters.formatDifficulty(viewModel.difficulty)
-                            ) { DifficultyDetailView() }
+                                value: Formatters.formatDifficulty(viewModel.difficulty),
+                                route: .difficulty
+                            )
 
                             StatCard(
                                 title: "Hashrate",
-                                value: Formatters.formatHashrate(viewModel.hashrate)
-                            ) { HashrateDetailView() }
+                                value: Formatters.formatHashrate(viewModel.hashrate),
+                                route: .hashrate
+                            )
                         }
                         .padding(.horizontal, 20)
 
-                        NavigationLink(destination: FeesDetailView()) {
+                        NavigationLink(value: DashboardRoute.fees) {
                             FeeRowView(fees: viewModel.fees)
                                 .padding(.horizontal, 20)
                         }
                         .buttonStyle(CardButtonStyle())
 
                         if viewModel.moscowTime > 0 {
-                            NavigationLink(destination: MoscowTimeDetailView()) {
+                            NavigationLink(value: DashboardRoute.moscow) {
                                 MoscowTimeWidget(moscowTime: viewModel.moscowTime)
                                     .padding(.horizontal, 20)
                             }
@@ -68,7 +73,7 @@ struct DashboardView: View {
                         }
 
                         if viewModel.circulatingSupply > 0 {
-                            NavigationLink(destination: CirculatingSupplyDetailView()) {
+                            NavigationLink(value: DashboardRoute.supply) {
                                 CirculatingSupplyWidget(
                                     supply: viewModel.circulatingSupply,
                                     percent: viewModel.circulatingSupplyPercent
@@ -104,10 +109,44 @@ struct DashboardView: View {
                 .navigationTitle("Dashboard")
                 .refreshable { await viewModel.refreshData() }
             }
+            .navigationDestination(for: DashboardRoute.self) { route in
+                destination(for: route)
+            }
             .onChange(of: settings.preferredCurrency) { _ in
                 Task { await viewModel.refreshData() }
             }
         }
+        // Consume a widget deep-link the moment it arrives or the Dashboard appears.
+        .onAppear { consumePendingDashboardRoute() }
+        .onChange(of: router.pendingDashboardRoute) { _, _ in
+            consumePendingDashboardRoute()
+        }
+    }
+
+    /// The detail screen for a Dashboard route — the single source of truth shared by
+    /// in-app card taps (NavigationLink(value:)) and widget deep-links.
+    @ViewBuilder
+    private func destination(for route: DashboardRoute) -> some View {
+        switch route {
+        case .price:      PriceDetailView()
+        case .block:      BlockHeightDetailView()
+        case .mempool:    MempoolDetailView()
+        case .difficulty: DifficultyDetailView()
+        case .hashrate:   HashrateDetailView()
+        case .fees:       FeesDetailView()
+        case .moscow:     MoscowTimeDetailView()
+        case .supply:     CirculatingSupplyDetailView()
+        case .halving:    HalvingDetailView()
+        case .lightning:  LightningDetailView()
+        }
+    }
+
+    /// Push a deep-link route handed over from a widget, then clear it. Replaces the
+    /// stack so Back returns to the Dashboard root and repeat taps don't pile up.
+    private func consumePendingDashboardRoute() {
+        guard let route = router.pendingDashboardRoute else { return }
+        router.pendingDashboardRoute = nil
+        path = [route]
     }
 }
 
@@ -173,14 +212,14 @@ struct PriceHeroCard: View {
 
 // MARK: - Stat tiles (flat)
 
-struct StatCard<Destination: View>: View {
+struct StatCard: View {
     let title: String
     let value: String
     var subtitle: String? = nil
-    let destination: () -> Destination
+    let route: DashboardRoute
 
     var body: some View {
-        NavigationLink(destination: destination) {
+        NavigationLink(value: route) {
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 HStack {
                     SectionLabel(title)
@@ -209,20 +248,20 @@ struct StatCard<Destination: View>: View {
     }
 }
 
-struct BlockHeightStatCard<Destination: View>: View {
+struct BlockHeightStatCard: View {
     let value: Int
-    let destination: () -> Destination
+    let route: DashboardRoute
     @State private var showPlusOne = false
     @State private var previousValue: Int
 
-    init(value: Int, destination: @autoclosure @escaping () -> Destination) {
+    init(value: Int, route: DashboardRoute) {
         self.value = value
-        self.destination = destination
+        self.route = route
         self._previousValue = State(initialValue: value)
     }
 
     var body: some View {
-        NavigationLink(destination: destination) {
+        NavigationLink(value: route) {
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 HStack {
                     SectionLabel("Block Height")
@@ -255,7 +294,9 @@ struct BlockHeightStatCard<Destination: View>: View {
             .cardSurface()
         }
         .buttonStyle(CardButtonStyle())
-        .onChange(of: value) { newValue, oldValue in
+        .onChange(of: value) { oldValue, newValue in
+            // SwiftUI's two-parameter onChange delivers (old, new) — show the "+1"
+            // rise only on a genuine block-height increase.
             if newValue > oldValue {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { showPlusOne = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -377,7 +418,7 @@ struct HalvingCard: View {
     let blocksRemaining: Int
     let progress: Double
     var body: some View {
-        NavigationLink(destination: HalvingDetailView()) {
+        NavigationLink(value: DashboardRoute.halving) {
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                 HStack { SectionLabel("Halving Countdown"); Spacer(); CardChevron() }
                 ProgressView(value: progress)
@@ -405,7 +446,7 @@ struct LightningCard: View {
     let nodes: Int
     let capacity: Double
     var body: some View {
-        NavigationLink(destination: LightningDetailView()) {
+        NavigationLink(value: DashboardRoute.lightning) {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 HStack { SectionLabel("Lightning Network"); Spacer(); CardChevron() }
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 3), spacing: Theme.Spacing.lg) {

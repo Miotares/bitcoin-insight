@@ -26,9 +26,13 @@ struct BitcoinWidgetsApp: App {
                     PaywallView().environmentObject(store)
                 }
                 .onOpenURL { url in
-                    // Deep-link from a locked widget: bitcoininsight://paywall
-                    if url.scheme == "bitcoininsight", url.host == "paywall", !store.hasPremium {
-                        showPaywall = true
+                    guard url.scheme == "bitcoininsight" else { return }
+                    if url.host == "paywall" {
+                        // Deep-link from a locked widget.
+                        if !store.hasPremium { showPaywall = true }
+                    } else if let route = DashboardRoute(host: url.host) {
+                        // Deep-link from a single-metric widget to its detail view.
+                        router.openDashboard(route)
                     }
                 }
                 .onChange(of: scenePhase) { _, phase in
@@ -43,6 +47,11 @@ struct BitcoinWidgetsApp: App {
                             if store.product == nil { await store.loadProduct() }
                             await store.refreshEntitlements()
                         }
+                    } else {
+                        // Re-hide private wallet balances whenever the app leaves the
+                        // foreground, so the app-switcher snapshot and the next open
+                        // both start blurred (only relevant when the setting is on).
+                        settings.balancesRevealed = false
                     }
                 }
         }
