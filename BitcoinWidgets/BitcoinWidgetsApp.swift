@@ -11,6 +11,7 @@ import SwiftUI
 struct BitcoinWidgetsApp: App {
     @StateObject private var settings = SettingsManager.shared
     @StateObject private var store = StoreManager()
+    @StateObject private var router = AppRouter()
     @State private var showPaywall = false
     @Environment(\.scenePhase) private var scenePhase
 
@@ -19,6 +20,7 @@ struct BitcoinWidgetsApp: App {
             MainTabView()
                 .environmentObject(settings)
                 .environmentObject(store)
+                .environmentObject(router)
                 .preferredColorScheme(.dark)
                 .sheet(isPresented: $showPaywall) {
                     PaywallView().environmentObject(store)

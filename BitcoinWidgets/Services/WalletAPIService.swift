@@ -259,7 +259,10 @@ struct WalletAPIService {
     /// - HTTP 429: exponential back-off (respects Retry-After header)
     /// - URLError.timedOut: 3 s flat delay
     /// All other errors propagate immediately.
-    private static func fetchWithRetry(url: URL, maxRetries: Int = 3) async throws -> (Data, HTTPURLResponse) {
+    ///
+    /// Internal (not private) so the Explore feature reuses the exact same
+    /// 429 back-off instead of duplicating retry logic.
+    static func fetchWithRetry(url: URL, maxRetries: Int = 3) async throws -> (Data, HTTPURLResponse) {
         var attempt = 0
         var delayNs: UInt64 = 2_000_000_000  // start: 2 s (for 429 back-off)
 

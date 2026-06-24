@@ -134,6 +134,14 @@ struct SettingsView: View {
                                     .tint(Color.bitcoinOrange)
                             }
 
+                            Divider().padding(.leading, 16)
+
+                            SettingsRow(title: "Explore Tab") {
+                                Toggle("", isOn: $settings.showExploreTab)
+                                    .labelsHidden()
+                                    .tint(Color.bitcoinOrange)
+                            }
+
                             if settings.showWalletTab {
                                 Divider().padding(.leading, 16)
 

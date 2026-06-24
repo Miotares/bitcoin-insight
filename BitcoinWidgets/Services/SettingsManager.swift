@@ -30,6 +30,12 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    @Published var showExploreTab: Bool {
+        didSet {
+            UserDefaults.standard.set(showExploreTab, forKey: "showExploreTab")
+        }
+    }
+
     @Published var gapLimit: Int {
         didSet {
             UserDefaults.standard.set(gapLimit, forKey: "gapLimit")
@@ -62,6 +68,7 @@ class SettingsManager: ObservableObject {
         self.preferredCurrency = UserDefaults.standard.string(forKey: "preferredCurrency") ?? "USD"
         self.hapticsEnabled = UserDefaults.standard.bool(forKey: "hapticsEnabled")
         self.showWalletTab = UserDefaults.standard.object(forKey: "showWalletTab") as? Bool ?? true
+        self.showExploreTab = UserDefaults.standard.object(forKey: "showExploreTab") as? Bool ?? true
         self.gapLimit = UserDefaults.standard.object(forKey: "gapLimit") as? Int ?? 20
         WidgetBridge.setCurrency(preferredCurrency)   // mirror currency to widgets at launch
     }

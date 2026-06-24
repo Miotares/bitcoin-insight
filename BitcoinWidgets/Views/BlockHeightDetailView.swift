@@ -24,11 +24,15 @@ struct BlockData: Decodable {
     let total_out: Int
 
     private enum CodingKeys: String, CodingKey {
-        case height, timestamp, tx_count, difficulty, size, weight, reward, pool, extras
+        case height, timestamp, tx_count, difficulty, size, weight, extras
     }
 
     private enum ExtrasKeys: String, CodingKey {
-        case totalFees, totalOutputs, medianFee, totalOutputAmt
+        case totalFees, totalOutputs, medianFee, totalOutputAmt, reward, pool
+    }
+
+    private enum PoolKeys: String, CodingKey {
+        case name
     }
 
     init(from decoder: Decoder) throws {
@@ -39,21 +43,29 @@ struct BlockData: Decodable {
         difficulty = try container.decodeIfPresent(Double.self, forKey: .difficulty) ?? 0
         size = try container.decode(Int.self, forKey: .size)
         weight = try container.decode(Int.self, forKey: .weight)
-        if let decodedReward = try? container.decode(Int.self, forKey: .reward) {
-            reward = decodedReward
-        } else {
-            let halvings = height / 210_000
-            let subsidyBTC = 50.0 / pow(2.0, Double(halvings))
-            reward = Int(subsidyBTC * 100_000_000)
-        }
-        pool = try container.decodeIfPresent(String.self, forKey: .pool)
-        
+
+        // Block subsidy as a fallback when the enriched `extras.reward`
+        // (subsidy + fees) is unavailable.
+        let halvings = height / 210_000
+        let subsidyFallback = Int((50.0 / pow(2.0, Double(halvings))) * 100_000_000)
+
         if let extras = try? container.nestedContainer(keyedBy: ExtrasKeys.self, forKey: .extras) {
+            // `reward` and `pool` live under `extras` on mempool.space — NOT at the
+            // top level. Decoding them top-level always failed, so `reward` fell back
+            // to subsidy-only (no fees) and "Mined by" never rendered.
+            reward = try extras.decodeIfPresent(Int.self, forKey: .reward) ?? subsidyFallback
+            if let poolContainer = try? extras.nestedContainer(keyedBy: PoolKeys.self, forKey: .pool) {
+                pool = try poolContainer.decodeIfPresent(String.self, forKey: .name)
+            } else {
+                pool = nil
+            }
             totalFees = try extras.decodeIfPresent(Int.self, forKey: .totalFees) ?? 0
             totalOutputs = try extras.decodeIfPresent(Int.self, forKey: .totalOutputs) ?? 0
             medianFee = try extras.decodeIfPresent(Double.self, forKey: .medianFee)
             total_out = try extras.decodeIfPresent(Int.self, forKey: .totalOutputAmt) ?? 0 // Note key mapping
         } else {
+            reward = subsidyFallback
+            pool = nil
             totalFees = 0
             totalOutputs = 0
             medianFee = nil
@@ -63,9 +75,13 @@ struct BlockData: Decodable {
 }
 
 struct BlockHeightDetailView: View {
+    @EnvironmentObject var router: AppRouter
+    @EnvironmentObject var settings: SettingsManager
     @State private var blockData: BlockData?
     @State private var tipHeight: Int?
     @State private var errorMessage: String?
+    @State private var blockHash: String?
+    @State private var isOnScreen = false
 
     func fetchTipHeight() {
         let url = URL(string: "https://mempool.space/api/blocks/tip/height")!
@@ -120,6 +136,7 @@ struct BlockHeightDetailView: View {
                         let detailedBlock = try JSONDecoder().decode(BlockData.self, from: detailData)
                         DispatchQueue.main.async {
                             self.blockData = detailedBlock
+                            self.blockHash = latestBlock.id
                             self.errorMessage = nil
                         }
                     } catch {
@@ -286,6 +303,30 @@ struct BlockHeightDetailView: View {
                         .cardSurface()
                         .padding(.horizontal)
 
+                        // Cross-link into the Explore tab's full block view —
+                        // only when the Explore tab is enabled.
+                        if settings.showExploreTab {
+                            Button {
+                                if let blockHash {
+                                    router.openInExplorer(.block(hash: blockHash))
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "cube.transparent")
+                                    Text("See in Explorer").fontWeight(.semibold)
+                                    Spacer()
+                                    Image(systemName: "arrow.up.right")
+                                }
+                                .foregroundStyle(Color.bitcoinOrange)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .cardSurface()
+                            }
+                            .buttonStyle(CardButtonStyle())
+                            .padding(.horizontal)
+                            .disabled(blockHash == nil)
+                        }
+
                     } else if let error = errorMessage {
                         VStack(spacing: 16) {
                             Image(systemName: "wifi.exclamationmark")
@@ -314,9 +355,17 @@ struct BlockHeightDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            isOnScreen = true
             fetchLatestBlock()
         }
+        .onDisappear { isOnScreen = false }   // covers NavigationStack pop within the Dashboard tab
         .onReceive(Timer.publish(every: 10, on: .main, in: .common).autoconnect()) { _ in
+            // Pause when this view is popped (isOnScreen) OR when the user jumped
+            // to another tab via "See in Explorer" — TabView doesn't deliver
+            // .onDisappear on a tab switch, so without the tab check the 10 s fetch
+            // would run forever off-screen. (This view is only ever pushed from the
+            // Dashboard in tab 0; the tab check also guards future non-tab-0 mounts.)
+            guard isOnScreen, router.selectedTab == 0 else { return }
             fetchLatestBlock()
         }
     }

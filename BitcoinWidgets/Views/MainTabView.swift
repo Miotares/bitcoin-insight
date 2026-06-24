@@ -10,17 +10,25 @@ import SwiftUI
 import StoreKit
 
 struct MainTabView: View {
-    @State private var selectedTab = 0
     @EnvironmentObject var settings: SettingsManager
+    @EnvironmentObject var router: AppRouter
     @Environment(\.requestReview) private var requestReview
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: $router.selectedTab) {
             DashboardView()
                 .tabItem {
                     Label("Dashboard", systemImage: "square.grid.2x2.fill")
                 }
                 .tag(0)
+
+            if settings.showExploreTab {
+                ExploreView()
+                    .tabItem {
+                        Label("Explore", systemImage: "magnifyingglass")
+                    }
+                    .tag(3)
+            }
 
             if settings.showWalletTab {
                 WalletTabView()
@@ -38,8 +46,18 @@ struct MainTabView: View {
         }
         .tint(Color.bitcoinOrange)
         .onChange(of: settings.showWalletTab) { _, isShown in
-            if !isShown && selectedTab == 1 {
-                selectedTab = 0
+            if !isShown && router.selectedTab == 1 {
+                router.selectedTab = 0
+            }
+        }
+        .onChange(of: settings.showExploreTab) { _, isShown in
+            if !isShown {
+                // Drop any queued deep-link so re-enabling Explore later can't
+                // replay a stale route, and leave the now-missing tab.
+                router.pendingExploreRoute = nil
+                if router.selectedTab == AppRouter.exploreTab {
+                    router.selectedTab = 0
+                }
             }
         }
         .onAppear {
