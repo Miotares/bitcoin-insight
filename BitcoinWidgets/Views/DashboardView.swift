@@ -157,9 +157,12 @@ struct PriceHeroCard: View {
             Spacer(minLength: Theme.Spacing.md)
 
             // Minimal, non-interactive 24h sparkline — green if up, red if down.
+            // Small trailing inset so its right edge sits a touch inside the cards
+            // below, instead of looking like it overshoots the content edge.
             PriceSparkline(currency: currency)
                 .frame(width: 92, height: 44)
                 .padding(.bottom, 6)
+                .padding(.trailing, Theme.Spacing.sm)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         // Make the WHOLE hero (incl. the spacer + sparkline) one tap target, so a

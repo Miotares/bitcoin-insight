@@ -3,19 +3,16 @@
 //  BitcoinWidgets
 //
 //  Historical "Moscow Time" chart = how many sats equal 1 unit of the preferred
-//  fiat currency (1e8 / price). Derived from the same price history as PriceChart
-//  (/api/v1/historical-price?currency=CUR), which returns the FULL history in one
-//  response. So we fetch ONCE per currency and FILTER client-side per range.
+//  fiat currency (1e8 / price). Derived from the SAME shared price history as
+//  PriceChart (HistoricalPriceStore: mempool recent ∪ Supabase daily back to 2011),
+//  so it covers all 19 currencies — including the 12 mempool doesn't serve — and is
+//  fetched ONCE per currency, then FILTERED client-side per range.
 //
 //  Mirrors the other charts and reuses ScrubbableLineChart. `points` is kept in
 //  @State (rebuilt on data/range change only) so a scrub tick never re-filters.
 //
 
 import SwiftUI
-
-private struct MoscowPriceResponse: Decodable {
-    let prices: [[String: Double]]
-}
 
 struct MoscowTimeChart: View {
     /// Preferred currency code. A change re-fetches.
@@ -200,30 +197,24 @@ struct MoscowTimeChart: View {
             failed = false
         }
 
-        guard let url = URL(string: "https://mempool.space/api/v1/historical-price?currency=\(currency)") else {
-            await MainActor.run { isLoading = false; failed = true }
-            return
-        }
+        // Read from the shared price-history store (mempool recent ∪ Supabase daily
+        // back to 2011) — the SAME source PriceChart uses — instead of hitting
+        // mempool directly. mempool's historical-price returns an empty body for the
+        // 12 currencies it doesn't serve, so the direct fetch left their chart empty
+        // ("Couldn't load chart"); the store has all 19. Moscow Time = 1e8 / price.
+        let pts = await HistoricalPriceStore.shared.series(for: currency)
 
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let resp = try JSONDecoder().decode(MoscowPriceResponse.self, from: data)
-            let parsed = resp.prices
-                .compactMap { dict -> MoscowPoint? in
-                    guard let t = dict["time"], let p = dict[currency], p > 0 else { return nil }
-                    return MoscowPoint(date: Date(timeIntervalSince1970: t), sats: 100_000_000.0 / p)
-                }
-                .sorted { $0.date < $1.date }
-            await MainActor.run {
-                self.series = parsed
+        await MainActor.run {
+            if pts.isEmpty {
+                self.failed = true
+                self.isLoading = false
+            } else {
+                // The store already filters out non-positive prices, so the division
+                // is safe.
+                self.series = pts.map { MoscowPoint(date: $0.date, sats: 100_000_000.0 / $0.price) }
                 rebuildPoints()
                 self.selected = nil
                 self.isScrubbing = false
-                self.isLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                self.failed = true
                 self.isLoading = false
             }
         }

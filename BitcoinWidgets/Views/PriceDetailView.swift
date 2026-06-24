@@ -90,7 +90,23 @@ struct PriceDetailView: View {
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let decoded = try JSONDecoder().decode([String: Double].self, from: data)
-            await MainActor.run { self.prices = decoded }
+            await MainActor.run {
+                // mempool serves only 7 currencies (+ a non-currency `time` field).
+                // MERGE them over the existing values rather than REPLACING, so a
+                // non-mempool preferred currency (BRL/INR/CNY/THB/…) keeps the live
+                // value the Dashboard derived instead of being wiped to 0 (which made
+                // the hero show "Rp 0" for the 12 currencies mempool doesn't serve).
+                var merged = self.prices
+                for (code, value) in decoded where code.count == 3 { merged[code] = value }
+                // The preferred currency drives the hero. If mempool doesn't serve it,
+                // pull the Dashboard's freshly-derived value (USD x FX, refreshed every
+                // 10s) from the shared store so the hero stays live, not frozen/zero.
+                let pref = settings.preferredCurrency.uppercased()
+                if decoded[pref] == nil {
+                    merged[pref] = SettingsManager.shared.btcPrices[pref] ?? merged[pref]
+                }
+                self.prices = merged
+            }
         } catch {
             // Keep the seeded values on a transient failure.
         }

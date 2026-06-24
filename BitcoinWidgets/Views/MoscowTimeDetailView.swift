@@ -90,7 +90,19 @@ struct MoscowTimeDetailView: View {
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let decoded = try JSONDecoder().decode([String: Double].self, from: data)
-            await MainActor.run { self.prices = decoded }
+            await MainActor.run {
+                // MERGE mempool's 7 currencies (+ a non-currency `time` field) over
+                // the existing values instead of REPLACING — otherwise a non-mempool
+                // preferred currency (CNY/HKD/SEK/BRL/INR/…) gets wiped and the hero
+                // + grid collapse to "-". Same fix as PriceDetailView.fetchPrices().
+                var merged = self.prices
+                for (code, value) in decoded where code.count == 3 { merged[code] = value }
+                let pref = settings.preferredCurrency.uppercased()
+                if decoded[pref] == nil {
+                    merged[pref] = SettingsManager.shared.btcPrices[pref] ?? merged[pref]
+                }
+                self.prices = merged
+            }
         } catch {
             // Keep the seeded values on a transient failure.
         }

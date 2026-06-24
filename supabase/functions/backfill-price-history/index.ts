@@ -9,10 +9,11 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // Non-USD/EUR ECB crosses. USD + EUR are handled explicitly below.
-// Tier-1 additions (BRL…PLN) are all in the ECB reference set.
+// Tier-1 additions (BRL…PLN) and CNY/HKD/SEK are all in the ECB reference set.
 const CURS = [
   "GBP", "CHF", "CAD", "AUD", "JPY",
   "BRL", "INR", "MXN", "KRW", "THB", "IDR", "TRY", "CZK", "PLN",
+  "CNY", "HKD", "SEK",
 ];
 
 async function fetchBitstamp(): Promise<Map<string, number>> {

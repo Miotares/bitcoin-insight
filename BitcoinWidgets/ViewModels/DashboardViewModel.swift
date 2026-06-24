@@ -117,9 +117,10 @@ class DashboardViewModel: ObservableObject {
             case "CHF": parsedPrice = typed.CHF
             case "AUD": parsedPrice = typed.AUD
             case "JPY": parsedPrice = typed.JPY
-            // mempool serves only the 7 currencies above. For anything else
-            // (CNY/HKD/SEK) leave parsedPrice nil so this throws and the
-            // CoinGecko fallback — which supports them — takes over.
+            // mempool serves only the 7 currencies above. For the other 12
+            // (CNY/HKD/SEK/BRL/INR/MXN/KRW/THB/IDR/TRY/CZK/PLN) leave parsedPrice
+            // nil here; it's filled just below from the live USD price x today's FX
+            // ratio (price_history). CoinGecko stays a last-resort fallback only.
             default: parsedPrice = nil
             }
 
@@ -132,9 +133,9 @@ class DashboardViewModel: ObservableObject {
             if let v = typed.CHF { allPrices["CHF"] = v }
             if let v = typed.AUD { allPrices["AUD"] = v }
             if let v = typed.JPY { allPrices["JPY"] = v }
-            // Merge (not replace) so a CoinGecko-only currency (CNY/HKD/SEK) added
-            // on a previous cycle keeps its last value while CoinGecko re-fetches it,
-            // instead of flashing to 0 between this write and the fallback.
+            // Merge (not replace) so a derived currency (CNY/HKD/SEK/BRL/INR/…) added
+            // on a previous cycle keeps its last value while it's re-derived below,
+            // instead of flashing to 0 between this write and the derivation.
             if !allPrices.isEmpty {
                 SettingsManager.shared.btcPrices.merge(allPrices) { _, new in new }
             }
@@ -146,11 +147,12 @@ class DashboardViewModel: ObservableObject {
             if usdPrice == nil, let d = json["USD"] as? Double { usdPrice = d }
         }
 
-        // mempool serves only the 7 currencies above. For the others (BRL/INR/…)
-        // derive the live fiat price from the live USD price x today's FX ratio
-        // (db.cur/db.usd from price_history) — the same method mempool itself uses,
-        // and independent of the flaky CoinGecko endpoint. Also store it so the
-        // Wallet tab can value balances in that currency.
+        // mempool serves only the 7 currencies above. For the other 12
+        // (CNY/HKD/SEK/BRL/INR/MXN/KRW/THB/IDR/TRY/CZK/PLN) derive the live fiat
+        // price from the live USD price x today's FX ratio (db.cur/db.usd from
+        // price_history) — the same method mempool itself uses, and independent of
+        // the flaky CoinGecko endpoint. Also store it so the Wallet tab can value
+        // balances in that currency.
         if parsedPrice == nil, let usd = usdPrice, usd > 0,
            let fx = await HistoricalPriceStore.latestFXRatio(currency: currencyKey), fx > 0 {
             let derived = usd * fx

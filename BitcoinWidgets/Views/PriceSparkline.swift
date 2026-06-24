@@ -35,7 +35,9 @@ import Charts
 import OSLog
 
 struct PriceSparkline: View {
-    /// Preferred currency code (USD/EUR/GBP/CHF/CAD/AUD/JPY). A change re-fetches.
+    /// Preferred currency code (any of the 19 offered). A change re-fetches. The 7
+    /// mempool currencies come straight from history; the other 12 fall back to the
+    /// USD-24h-shape x FX derivation in `fetchDerived24h`.
     let currency: String
 
     /// Drives a re-fetch when the app returns to the foreground, so the sparkline
@@ -49,6 +51,15 @@ struct PriceSparkline: View {
     /// re-download the same series. (The live price number above updates every
     /// 10s on its own; this is the 24h trend, which moves slowly.)
     private static let refreshInterval: UInt64 = 5 * 60 * 1_000_000_000
+
+    /// Minimum samples for the mempool/DB 24h slice to count as a real INTRADAY
+    /// sparkline rather than a ~2-point daily line. mempool's recent history is
+    /// hourly (~24 pts/24h), but the Supabase `price_history` DB is DAILY — so for
+    /// the 12 currencies mempool doesn't serve (TRY/CZK/IDR/…), a 24h window holds
+    /// at most ~2 daily points, which would draw a flat diagonal line. Requiring
+    /// more than that makes those currencies fall through to the USD-24h × FX
+    /// derivation (which reproduces the correct intraday shape). See `load`.
+    private static let minIntradayPoints = 6
 
     private static let log = Logger(subsystem: "miotares.BitcoinWidgets", category: "Sparkline")
 
@@ -155,11 +166,15 @@ struct PriceSparkline: View {
             return
         }
         // Fallback: the shared mempool history (24h slice) — the same cached series
-        // the price-detail chart reads — if CoinGecko was unavailable.
+        // the price-detail chart reads — if CoinGecko was unavailable. Require a
+        // genuinely intraday window (>= minIntradayPoints): for the 12 currencies
+        // mempool doesn't serve, this series is pure DB-DAILY data (~2 points in 24h),
+        // which would draw a flat diagonal line — so too-few points fall through to
+        // the USD-24h × FX derivation below instead of being shown as a "curve".
         let series = forceRefresh
             ? await HistoricalPriceStore.shared.refreshedSeries(for: currency)
             : await HistoricalPriceStore.shared.series(for: currency)
-        if let pts = last24h(from: series), pts.count >= 2 {
+        if let pts = last24h(from: series), pts.count >= Self.minIntradayPoints {
             await apply(pts)
             return
         }
@@ -285,7 +300,10 @@ struct PriceSparkline: View {
     // MARK: - Snapshot persistence (instant render on launch)
 
     private struct StoredPoint: Codable { let t: Double; let v: Double }
-    private static let snapshotKey = "priceSparkline.snapshots.v1"
+    // v2: v1 may hold the old degenerate 2-point daily seeds for the 12 non-mempool
+    // currencies (pre-fix). Bumping the key discards them so launch never flashes a
+    // straight line before the first fetch lands the proper derived curve.
+    private static let snapshotKey = "priceSparkline.snapshots.v2"
 
     /// Last persisted 24h series for `currency`, re-indexed into `Sample`s. Empty
     /// if nothing has been stored yet (first launch) or the snapshot is clearly
