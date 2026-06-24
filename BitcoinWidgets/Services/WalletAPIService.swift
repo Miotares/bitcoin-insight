@@ -27,8 +27,17 @@ enum WalletAPIError: Error, LocalizedError {
 
 struct AddressAPIResponse {
     let address: String
-    let balanceSats: Int     // funded - spent
+    /// Effective balance = confirmed + mempool (funded − spent). Reflects pending
+    /// incoming AND pending outgoing spends, so the headline is never stale.
+    let balanceSats: Int
+    /// Effective tx count = confirmed + mempool. Used for used/empty gap detection
+    /// and change detection so a brand-new mempool-only tx is noticed immediately.
     let txCount: Int
+    /// Confirmed-only tx count (chain_stats). Used for chain-pagination math, which
+    /// must compare confirmed-against-confirmed.
+    let confirmedTxCount: Int
+    /// Unconfirmed tx count currently in the mempool for this address.
+    let mempoolTxCount: Int
 }
 
 struct WalletAPIService {
@@ -47,6 +56,7 @@ struct WalletAPIService {
                 let tx_count: Int
             }
             let chain_stats: Stats
+            let mempool_stats: Stats   // always present on /api/address/{address}
         }
 
         let (data, _) = try await fetchWithRetry(url: url)
@@ -56,11 +66,14 @@ struct WalletAPIService {
             throw WalletAPIError.decodingError(body)
         }
 
-        let balance = decoded.chain_stats.funded_txo_sum - decoded.chain_stats.spent_txo_sum
+        let confirmedBalance = decoded.chain_stats.funded_txo_sum - decoded.chain_stats.spent_txo_sum
+        let mempoolBalance = decoded.mempool_stats.funded_txo_sum - decoded.mempool_stats.spent_txo_sum
         return AddressAPIResponse(
             address: address,
-            balanceSats: balance,
-            txCount: decoded.chain_stats.tx_count
+            balanceSats: confirmedBalance + mempoolBalance,
+            txCount: decoded.chain_stats.tx_count + decoded.mempool_stats.tx_count,
+            confirmedTxCount: decoded.chain_stats.tx_count,
+            mempoolTxCount: decoded.mempool_stats.tx_count
         )
     }
 
@@ -164,6 +177,76 @@ struct WalletAPIService {
                 results[response.address] = response
                 if let address = iterator.next() {
                     group.addTask { try await fetchAddressData(address: address) }
+                }
+            }
+        }
+        return results
+    }
+
+    // MARK: - Full Transaction History
+
+    /// Fetches the COMPLETE transaction history for `address`, paginating internally.
+    ///
+    /// Fast path: when `expectedConfirmedCount` (from address stats) is provided and
+    /// the first `/txs` page already contains every confirmed tx, the chain-pagination
+    /// loop is skipped entirely — saving a guaranteed round-trip for the common case
+    /// of an address with few transactions. No artificial inter-page delay; the 429
+    /// back-off in fetchWithRetry is the only throttle (chain pages are serial anyway,
+    /// each cursor depending on the previous page).
+    static func fetchFullHistory(
+        address: String,
+        expectedConfirmedCount: Int? = nil
+    ) async throws -> [WalletTransaction] {
+        var all = try await fetchTransactions(address: address)   // mempool + recent confirmed, ≤ 50
+
+        func confirmedCount() -> Int { all.lazy.filter { $0.confirmed }.count }
+        if let expected = expectedConfirmedCount, confirmedCount() >= expected {
+            return all
+        }
+
+        var cursor = all.last(where: { $0.confirmed })?.txid
+        while let c = cursor {
+            let page = try await fetchTransactions(address: address, startAfterTxID: c)
+            if page.isEmpty { break }
+            all.append(contentsOf: page)
+            if page.count < 25 { break }
+            if let expected = expectedConfirmedCount, confirmedCount() >= expected { break }
+            cursor = page.last(where: { $0.confirmed })?.txid
+        }
+        return all
+    }
+
+    /// Fetches full histories for several addresses with bounded concurrency.
+    /// Each address is paginated internally (serial, cursor-dependent); only the
+    /// fan-out ACROSS addresses is parallel. Returns address → transactions.
+    static func fetchHistoriesConcurrently(
+        _ addresses: [(address: String, expectedConfirmedCount: Int?)],
+        maxConcurrent: Int = 5
+    ) async throws -> [String: [WalletTransaction]] {
+        guard !addresses.isEmpty else { return [:] }
+        let limit = max(1, maxConcurrent)
+
+        var results: [String: [WalletTransaction]] = [:]
+        results.reserveCapacity(addresses.count)
+
+        try await withThrowingTaskGroup(of: (String, [WalletTransaction]).self) { group in
+            var iterator = addresses.makeIterator()
+
+            for _ in 0..<limit {
+                guard let item = iterator.next() else { break }
+                group.addTask {
+                    (item.address, try await fetchFullHistory(
+                        address: item.address, expectedConfirmedCount: item.expectedConfirmedCount))
+                }
+            }
+
+            while let (addr, txs) = try await group.next() {
+                results[addr] = txs
+                if let item = iterator.next() {
+                    group.addTask {
+                        (item.address, try await fetchFullHistory(
+                            address: item.address, expectedConfirmedCount: item.expectedConfirmedCount))
+                    }
                 }
             }
         }

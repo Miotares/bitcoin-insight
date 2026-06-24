@@ -37,6 +37,10 @@ class WalletViewModel: ObservableObject {
     private var syncQueue: [UUID] = []
     private var isSyncQueueRunning = false
 
+    // Auto-refresh on new block
+    private var lastSeenBlockHeight = 0
+    private var isAutoRefreshing = false
+
     // MARK: - Init
 
     init() {
@@ -60,6 +64,14 @@ class WalletViewModel: ObservableObject {
         $totalBalanceSats
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.recomputeFiat() }
+            .store(in: &cancellables)
+
+        // Auto-refresh balances when a new block arrives. The tip height is published
+        // by DashboardViewModel's 10 s poll, which only runs while the app is in the
+        // foreground — so this naturally never fires in the background.
+        settings.$observedBlockHeight
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] height in self?.handleObservedBlockHeight(height) }
             .store(in: &cancellables)
 
         resumePendingSyncs()
@@ -94,6 +106,62 @@ class WalletViewModel: ObservableObject {
             await backgroundSync(walletID: walletID)
         }
         isSyncQueueRunning = false
+    }
+
+    // MARK: - Auto-refresh on new block
+
+    /// Reacts to the shared tip height advancing. Ignores the initial 0→N launch
+    /// baseline and only fires on a genuinely new block.
+    private func handleObservedBlockHeight(_ height: Int) {
+        guard height > 0 else { return }
+        let previous = lastSeenBlockHeight
+        lastSeenBlockHeight = height
+        guard previous > 0, height > previous else { return }   // new block only
+        autoRefreshOnNewBlock()
+    }
+
+    /// Triggers a lightweight incremental refresh of each idle, already-scanned wallet
+    /// — serial across wallets so it never bursts the mempool.space rate limit. Wallets
+    /// still doing their first scan, already syncing, or refreshed in the last 45 s are
+    /// skipped (the latter debounces against a just-completed manual pull).
+    private func autoRefreshOnNewBlock() {
+        guard !isAutoRefreshing else { return }
+        let now = Date()
+        let due = WalletManager.shared.wallets.filter { wallet in
+            !wallet.isSyncing
+                && wallet.lastScanned != nil
+                && now.timeIntervalSince(wallet.lastScanned!) > 45
+        }
+        guard !due.isEmpty else { return }
+
+        isAutoRefreshing = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            for wallet in due {
+                await self.refreshWallet(wallet)   // incremental path, serial across wallets
+            }
+            self.isAutoRefreshing = false
+        }
+    }
+
+    // MARK: - Full Rescan
+
+    /// Forces a complete gap-limit rescan from index 0 — for the rare case where a user
+    /// believes funds are missing (or changed the gap limit). Clears derived state and
+    /// re-runs the full scan via the serial sync queue. The sync banner then shows the
+    /// honest first-scan copy because `addresses` is empty again.
+    func rescanWallet(_ wallet: Wallet) {
+        let live = WalletManager.shared.wallets.first(where: { $0.id == wallet.id }) ?? wallet
+        guard !live.isSyncing else { return }
+        Haptics.trigger(.medium)
+        var reset = live
+        reset.addresses = []
+        reset.transactions = []
+        reset.lastScanned = nil
+        reset.isSyncing = true
+        WalletManager.shared.updateWallet(reset)
+        updateTotals()
+        enqueueSyncAndRun(walletID: reset.id)
     }
 
     // MARK: - Add Wallet
@@ -337,11 +405,13 @@ class WalletViewModel: ObservableObject {
                     if consecutiveEmpty >= gapLimit { break }   // gap closed — ignore rest of batch
                 } else {
                     consecutiveEmpty = 0
-                    let txs = try await fetchAllTransactions(for: item.address)
+                    let txs = try await fetchAllTransactions(
+                        for: item.address, expectedConfirmedCount: info.confirmedTxCount)
                     allAddresses.append(WalletAddress(
                         id: UUID(), address: item.address,
                         derivationIndex: item.index, chain: chain,
-                        balanceSats: info.balanceSats, txCount: info.txCount
+                        balanceSats: info.balanceSats, txCount: info.txCount,
+                        mempoolTxCount: info.mempoolTxCount
                     ))
                     allTransactions.append(contentsOf: txs)
                     foundInBatch = true
@@ -421,21 +491,33 @@ class WalletViewModel: ObservableObject {
             updatedAddresses.map(\.address), maxConcurrent: maxConcurrentRequests
         )
 
-        var addressesWithNewTxs: [String] = []
+        // Decide which addresses need a transaction re-fetch. Re-fetch when:
+        //  • the effective (confirmed+mempool) count changed, OR
+        //  • there is pending activity now (a fresh unconfirmed tx), OR
+        //  • there WAS pending activity last time — a mempool→confirmed flip leaves the
+        //    effective count identical, so without this clause the tx would stay
+        //    "Unconfirmed" forever.
+        var toRefetch: [(address: String, expectedConfirmedCount: Int?)] = []
         for i in updatedAddresses.indices {
             guard let info = infos[updatedAddresses[i].address] else { continue }
-            let oldCount = updatedAddresses[i].txCount
+            let oldEffective = updatedAddresses[i].txCount
+            let oldMempool = updatedAddresses[i].mempoolTxCount ?? 0
             updatedAddresses[i].balanceSats = info.balanceSats
             updatedAddresses[i].txCount = info.txCount
-            if info.txCount > oldCount {
-                addressesWithNewTxs.append(updatedAddresses[i].address)
+            updatedAddresses[i].mempoolTxCount = info.mempoolTxCount
+            if info.txCount != oldEffective || info.mempoolTxCount > 0 || oldMempool > 0 {
+                toRefetch.append((updatedAddresses[i].address, info.confirmedTxCount))
             }
         }
 
-        // Fetch & merge transactions only for addresses whose tx count grew.
-        for address in addressesWithNewTxs {
-            let freshTxs = try await fetchAllTransactions(for: address)
-            mergeTxs(&mergedTransactions, from: freshTxs)
+        // Fetch the affected histories concurrently, then merge serially on the actor.
+        if !toRefetch.isEmpty {
+            let histories = try await WalletAPIService.fetchHistoriesConcurrently(
+                toRefetch, maxConcurrent: maxConcurrentRequests
+            )
+            for address in toRefetch.map(\.address) {
+                if let txs = histories[address] { mergeTxs(&mergedTransactions, from: txs) }
+            }
         }
 
         // Step 2: Scan for new addresses beyond the last known index per chain.
@@ -459,27 +541,16 @@ class WalletViewModel: ObservableObject {
 
     // MARK: - Transaction Helpers
 
-    /// Fetches ALL pages of transactions for `address`, paginating automatically.
-    /// Used by HD-wallet scan functions where per-page progressive saves
-    /// are not needed (each address has few txs in practice).
-    private func fetchAllTransactions(for address: String) async throws -> [WalletTransaction] {
-        var all: [WalletTransaction] = []
-
-        // First page: mempool + most recent confirmed, ≤ 50.
-        let firstPage = try await WalletAPIService.fetchTransactions(address: address)
-        all.append(contentsOf: firstPage)
-
-        // Chain pages: ≤ 25 confirmed txs older than the last cursor, until empty.
-        var cursor = firstPage.last(where: { $0.confirmed })?.txid
-        while let c = cursor {
-            try? await Task.sleep(nanoseconds: 200_000_000)
-            let page = try await WalletAPIService.fetchTransactions(address: address, startAfterTxID: c)
-            if page.isEmpty { break }
-            all.append(contentsOf: page)
-            if page.count < 25 { break }
-            cursor = page.last(where: { $0.confirmed })?.txid
-        }
-        return all
+    /// Fetches ALL transactions for `address`. Delegates to the service-level
+    /// paginator, which skips chain pagination when the first page already covers
+    /// every confirmed tx (`expectedConfirmedCount`) — the common case for an HD
+    /// address with few transactions.
+    private func fetchAllTransactions(
+        for address: String,
+        expectedConfirmedCount: Int? = nil
+    ) async throws -> [WalletTransaction] {
+        try await WalletAPIService.fetchFullHistory(
+            address: address, expectedConfirmedCount: expectedConfirmedCount)
     }
 
     /// Merges `incoming` into `existing`, updating confirmation status for known txids.
@@ -509,7 +580,8 @@ class WalletViewModel: ObservableObject {
         let addrEntry = WalletAddress(
             id: wallet.addresses.first?.id ?? UUID(),
             address: address, derivationIndex: nil, chain: nil,
-            balanceSats: info.balanceSats, txCount: info.txCount
+            balanceSats: info.balanceSats, txCount: info.txCount,
+            mempoolTxCount: info.mempoolTxCount
         )
         var partial = WalletManager.shared.wallets.first(where: { $0.id == wallet.id }) ?? wallet
         partial.addresses = [addrEntry]
@@ -535,14 +607,15 @@ class WalletViewModel: ObservableObject {
         // --- Step 4: chain pages (older confirmed txs) ---
         // Use the oldest confirmed txid we now have as cursor so a resume picks
         // up exactly from the last saved position.
+        // Pagination math compares confirmed-against-confirmed; mempool txs from the
+        // effective count must not leak in here or it would over-paginate.
         let confirmedFetched = mergedTxs.filter { $0.confirmed }.count
-        var cursor: String? = confirmedFetched < info.txCount
+        var cursor: String? = confirmedFetched < info.confirmedTxCount
             ? mergedTxs.filter { $0.confirmed }
                        .min(by: { ($0.blockTime ?? Int.max) < ($1.blockTime ?? Int.max) })?.txid
             : nil
 
         while let c = cursor {
-            try? await Task.sleep(nanoseconds: 200_000_000)
             let page = try await WalletAPIService.fetchTransactions(address: address, startAfterTxID: c)
             if page.isEmpty { break }
             mergeTxs(&mergedTxs, from: page)
@@ -555,7 +628,7 @@ class WalletViewModel: ObservableObject {
             WalletManager.shared.updateWallet(partial)
 
             let totalConfirmed = mergedTxs.filter { $0.confirmed }.count
-            if totalConfirmed >= info.txCount { break }
+            if totalConfirmed >= info.confirmedTxCount { break }
             if page.count < 25 { break }
             cursor = page.last(where: { $0.confirmed })?.txid
         }

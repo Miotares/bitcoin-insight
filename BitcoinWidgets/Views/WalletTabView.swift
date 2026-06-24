@@ -203,15 +203,18 @@ struct WalletTabView: View {
             }
 
             if viewModel.wallets.contains(where: \.isSyncing) {
+                let anyFirstScan = viewModel.wallets.contains { $0.isSyncing && $0.addresses.isEmpty }
                 HStack(spacing: 6) {
                     ProgressView().scaleEffect(0.7)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Syncing wallets…")
+                        Text(anyFirstScan ? "Scanning wallets…" : "Updating…")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text("Keep the app open.")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                        if anyFirstScan {
+                            Text("First scan can take a while — keep the app open.")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                 }
                 .padding(.top, 2)
@@ -283,7 +286,7 @@ struct WalletCard: View {
                 if wallet.isSyncing {
                     HStack(spacing: 4) {
                         ProgressView().scaleEffect(0.6)
-                        Text("Syncing")
+                        Text(wallet.addresses.isEmpty ? "Scanning" : "Updating")
                             .font(.caption2)
                             .foregroundStyle(Color.bitcoinOrange)
                     }
@@ -327,6 +330,13 @@ struct WalletCard: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            if !wallet.isSyncing, let scanned = wallet.lastScanned {
+                Text("Updated \(scanned, format: .relative(presentation: .named))")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

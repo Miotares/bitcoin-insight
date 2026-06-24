@@ -226,6 +226,8 @@ class DashboardViewModel: ObservableObject {
                let str = String(data: data, encoding: .utf8),
                let height = Int(str.trimmingCharacters(in: .whitespacesAndNewlines)) {
                 self.blockHeight = height
+                // Publish the tip height for the Wallet tab's auto-refresh-on-new-block.
+                SettingsManager.shared.observedBlockHeight = height
             }
         }
         

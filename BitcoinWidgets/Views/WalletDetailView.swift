@@ -42,15 +42,18 @@ struct WalletDetailView: View {
 
                     // MARK: - Sync Banner
                     if currentWallet.isSyncing {
+                        let isFirstScan = currentWallet.addresses.isEmpty
                         HStack(spacing: 10) {
                             ProgressView()
                                 .scaleEffect(0.8)
                                 .tint(Color.bitcoinOrange)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Syncing wallet data…")
+                                Text(isFirstScan ? "Scanning wallet…" : "Checking for new activity…")
                                     .font(.subheadline)
                                     .fontWeight(.medium)
-                                Text("Keep the app open. Balance updates as addresses are found.")
+                                Text(isFirstScan
+                                     ? "First scan — this can take a while. Keep the app open."
+                                     : "Updating balance and transactions.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -183,6 +186,13 @@ struct WalletDetailView: View {
                         } label: {
                             Label("Rename Wallet", systemImage: "pencil")
                         }
+
+                        Button {
+                            viewModel.rescanWallet(currentWallet)
+                        } label: {
+                            Label("Full Rescan", systemImage: "arrow.clockwise")
+                        }
+                        .disabled(currentWallet.isSyncing)
 
                         Divider()
 

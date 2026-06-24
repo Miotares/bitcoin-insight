@@ -28,8 +28,13 @@ struct WalletAddress: Identifiable, Codable {
     let address: String
     let derivationIndex: Int?   // nil for single addresses
     let chain: Int?              // 0=external, 1=change
-    var balanceSats: Int
-    var txCount: Int
+    var balanceSats: Int        // effective (confirmed + mempool)
+    var txCount: Int            // effective (confirmed + mempool)
+    /// Unconfirmed tx count from the last refresh. Optional so wallets persisted
+    /// before this field decode cleanly (nil is treated as 0). Lets the incremental
+    /// refresh re-check an address that had pending activity so a mempool→confirmed
+    /// flip — which doesn't change the effective count — is still picked up.
+    var mempoolTxCount: Int? = nil
 }
 
 struct WalletTransaction: Identifiable, Codable {

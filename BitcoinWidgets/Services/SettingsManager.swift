@@ -40,6 +40,11 @@ class SettingsManager: ObservableObject {
     /// Never persisted — starts empty, populates within seconds of app launch.
     @Published var btcPrices: [String: Double] = [:]
 
+    /// Latest Bitcoin tip height seen by DashboardViewModel's 10 s poll. The Wallet
+    /// tab observes this to auto-refresh balances when a new block arrives (foreground
+    /// only — the poll is suspended while backgrounded). Never persisted; starts at 0.
+    @Published var observedBlockHeight: Int = 0
+
     /// Tiny multiplier applied to displayed BTC prices so the value isn't a flat
     /// integer (mempool returns whole numbers, so an unadjusted price always ends
     /// in .00). Shared by the Dashboard hero and the Price detail view so both show
