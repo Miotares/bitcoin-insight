@@ -31,12 +31,16 @@ enum WidgetFormat {
         "BTC/\(currency.uppercased()) \(price(value, currency: currency))"
     }
 
-    /// Compact price for tiny surfaces, e.g. 63873 → "63.9K".
+    /// Compact price for tiny surfaces, e.g. 63873 → "63.9K". Covers up to T so
+    /// high-magnitude currencies (IDR ≈ 1.1e9, KRW ≈ 9.6e7) don't overflow the M
+    /// tier into a nonsensical "1122.6M".
     static func priceCompact(_ value: Double) -> String {
         switch value {
-        case 1_000_000...: return String(format: "%.1fM", value / 1_000_000)
-        case 1_000...:     return String(format: "%.0fK", value / 1_000)
-        default:           return String(Int(value))
+        case 1_000_000_000_000...: return String(format: "%.1fT", value / 1_000_000_000_000)
+        case 1_000_000_000...:     return String(format: "%.1fB", value / 1_000_000_000)
+        case 1_000_000...:         return String(format: "%.1fM", value / 1_000_000)
+        case 1_000...:             return String(format: "%.0fK", value / 1_000)
+        default:                   return String(Int(value))
         }
     }
 
@@ -94,10 +98,12 @@ extension NetworkSnapshot {
 // MARK: - Derived (market + supply)
 
 extension NetworkSnapshot {
-    /// Sats per 1 USD.
-    var moscowTime: Int {
-        let usd = prices["USD"] ?? 0
-        return usd > 0 ? Int(100_000_000 / usd) : 0
+    /// Sats per 1 unit of the given fiat currency (Moscow Time). Honors the user's
+    /// selected currency — matches the in-app MoscowTimeDetailView ("sats / 1 <CUR>")
+    /// instead of being hardcoded to USD under a "$" label.
+    func moscowTime(for currency: String) -> Int {
+        let p = price(for: currency)
+        return p > 0 ? Int(100_000_000 / p) : 0
     }
 
     /// Circulating supply in BTC, computed from the block height.

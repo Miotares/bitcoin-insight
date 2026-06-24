@@ -25,9 +25,24 @@ struct NetworkSnapshot: Codable {
     var lnCapacitySats: Int
     var updatedAt: Date
 
+    // Tiny trend series for the home-widget sparklines (baked into the entry — a
+    // widget can't fetch on render). Optional so a pre-sparkline cache still decodes
+    // and a missing/short series just hides the line. Oldest -> newest.
+    var mempoolSeries: [Double]? = nil       // unconfirmed tx count, last 24h
+    var priceUsdSeries: [Double]? = nil      // USD price, last 24h
+    var hashrateSeries: [Double]? = nil      // network hashrate, last 30d
+
     /// Price in the given currency, falling back to USD.
     func price(for currency: String) -> Double {
         prices[currency.uppercased()] ?? prices["USD"] ?? 0
+    }
+
+    /// Moscow Time (sats per fiat) trend, derived from the USD price series. The
+    /// curve is axis-less, so the USD-derived shape is correct for every currency
+    /// (intraday FX is ~flat). nil when there's no usable price series.
+    var moscowSeries: [Double]? {
+        guard let p = priceUsdSeries, p.count >= 2 else { return nil }
+        return p.map { $0 > 0 ? 100_000_000 / $0 : 0 }
     }
 
     static let preview = NetworkSnapshot(
@@ -39,6 +54,9 @@ struct NetworkSnapshot: Codable {
         difficulty: 1.389e14,
         adjustmentProgress: 97.1, adjustmentRemainingBlocks: 58, adjustmentRetargetPercent: 1.2,
         lnChannels: 41_337, lnNodes: 17_363, lnCapacitySats: 549_744_023_772,
-        updatedAt: Date()
+        updatedAt: Date(),
+        mempoolSeries: [82_000, 95_000, 120_000, 138_000, 117_000, 104_000, 111_767],
+        priceUsdSeries: [61_800, 62_400, 61_200, 63_100, 64_000, 63_500, 63_922],
+        hashrateSeries: [7.9e20, 8.1e20, 8.0e20, 8.4e20, 8.6e20, 8.7e20, 8.897e20]
     )
 }

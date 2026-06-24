@@ -31,8 +31,15 @@ enum AppGroupStore {
     }
 
     static func loadCachedSnapshot() -> NetworkSnapshot? {
-        guard let data = defaults?.data(forKey: Key.cachedSnapshot) else { return nil }
-        return try? JSONDecoder().decode(NetworkSnapshot.self, from: data)
+        guard let data = defaults?.data(forKey: Key.cachedSnapshot),
+              let snapshot = try? JSONDecoder().decode(NetworkSnapshot.self, from: data) else { return nil }
+        // Discard a pre-expansion cache (saved when the backend served only the 7
+        // mempool currencies). Without this, after an app upgrade a widget set to one
+        // of the 12 newer currencies would fall back to the USD value (price(for:))
+        // and render it under the wrong code (e.g. "R$63,922") until the first fresh
+        // fetch. A non-mempool key like THB is present only in the full 19-key payload.
+        guard snapshot.prices["THB"] != nil else { return nil }
+        return snapshot
     }
 
     static func saveCachedSnapshot(_ snapshot: NetworkSnapshot) {

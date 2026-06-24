@@ -30,18 +30,22 @@ struct MoscowWidgetView: View {
         Gate(family: family, entry: entry) { s in
             switch family {
             case .accessoryInline:
-                Text("\(WidgetFormat.number(s.moscowTime)) sats/$")
+                Text("\(WidgetFormat.number(s.moscowTime(for: entry.currency))) sats/\(entry.currency.uppercased())")
             case .accessoryRectangular:
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Moscow Time").fontWeight(.semibold)
-                    Text("\(WidgetFormat.number(s.moscowTime)) sats/$")
+                    Text("\(WidgetFormat.number(s.moscowTime(for: entry.currency))) sats/\(entry.currency.uppercased())")
                 }.font(.caption)
             default:
                 VStack(alignment: .leading, spacing: 0) {
                     HomeLabel("Moscow Time")
                     Spacer(minLength: 6)
-                    BigValue(text: WidgetFormat.number(s.moscowTime), size: 30)
-                    Text("sats / $").font(.caption2).foregroundStyle(.secondary)
+                    BigValue(text: WidgetFormat.number(s.moscowTime(for: entry.currency)), size: 30)
+                    Text("sats / \(entry.currency.uppercased())").font(.caption2).foregroundStyle(.secondary)
+                    if let series = s.moscowSeries {
+                        Spacer(minLength: 8)
+                        WidgetSparkline(values: series)
+                    }
                 }
             }
         }
@@ -103,7 +107,12 @@ struct HashrateWidgetView: View {
                     HomeLabel("Hashrate")
                     Spacer(minLength: 6)
                     BigValue(text: WidgetFormat.hashrate(s.hashrate), size: 26)
-                    Text("network hashrate").font(.caption2).foregroundStyle(.secondary)
+                    Text(s.hashrateSeries == nil ? "network hashrate" : "30-day trend")
+                        .font(.caption2).foregroundStyle(.secondary)
+                    if let series = s.hashrateSeries {
+                        Spacer(minLength: 8)
+                        WidgetSparkline(values: series)
+                    }
                 }
             }
         }
@@ -129,6 +138,10 @@ struct MempoolWidgetView: View {
                     Spacer(minLength: 6)
                     BigValue(text: WidgetFormat.number(s.mempoolCount), size: 28)
                     Text("unconfirmed txs").font(.caption2).foregroundStyle(.secondary)
+                    if let series = s.mempoolSeries {
+                        Spacer(minLength: 8)
+                        WidgetSparkline(values: series)
+                    }
                 }
             }
         }
@@ -239,7 +252,7 @@ struct MarketWidgetView: View {
                 HStack(alignment: .top, spacing: 0) {
                     StatBlock(label: "Price", value: WidgetFormat.price(s.price(for: entry.currency), currency: entry.currency))
                     Spacer()
-                    StatBlock(label: "Moscow", value: WidgetFormat.number(s.moscowTime), sub: "sats/$")
+                    StatBlock(label: "Moscow", value: WidgetFormat.number(s.moscowTime(for: entry.currency)), sub: "sats/\(entry.currency.uppercased())")
                     Spacer()
                     StatBlock(label: "Supply", value: "\(pct)%")
                 }
@@ -279,7 +292,7 @@ struct OverviewWidgetView: View {
                     Spacer()
                     StatBlock(label: "Mempool", value: "\(WidgetFormat.compact(s.mempoolCount)) txs")
                     Spacer()
-                    StatBlock(label: "Moscow", value: WidgetFormat.number(s.moscowTime), sub: "sats/$")
+                    StatBlock(label: "Moscow", value: WidgetFormat.number(s.moscowTime(for: entry.currency)), sub: "sats/\(entry.currency.uppercased())")
                 }
                 Spacer(minLength: 0)
             }

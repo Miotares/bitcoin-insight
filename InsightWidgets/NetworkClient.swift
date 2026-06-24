@@ -11,12 +11,17 @@ import Foundation
 enum NetworkClient {
     private static let endpoint = URL(string:
         "https://hyyagnnsjbpsehriyafn.supabase.co/rest/v1/network_stats?select=payload&id=eq.1")!
+    private static let sparklineEndpoint = URL(string:
+        "https://hyyagnnsjbpsehriyafn.supabase.co/rest/v1/rpc/network_stats_sparklines")!
     private static let apiKey = "sb_publishable_FEEoI6sfC_EZ1oLP2E0IJQ_Yftfzrk9"
 
     private struct Row: Decodable {
         let payload: Payload
         struct Payload: Decodable {
-            let prices: [String: Double]
+            // Optional values so a single null currency (e.g. a partial mempool
+            // response upstream) can't make the whole payload fail to decode and
+            // freeze every widget stat — the null key is dropped, the rest stay live.
+            let prices: [String: Double?]
             let blockHeight: Int
             let fees: Fees
             let mempoolCount: Int?
@@ -53,8 +58,8 @@ enum NetworkClient {
             throw URLError(.cannotParseResponse)
         }
 
-        return NetworkSnapshot(
-            prices: p.prices,
+        var snapshot = NetworkSnapshot(
+            prices: p.prices.compactMapValues { $0 },
             blockHeight: p.blockHeight,
             feeFast: p.fees.fast,
             feeHalfHour: p.fees.halfHour,
@@ -70,5 +75,39 @@ enum NetworkClient {
             lnCapacitySats: p.lightning?.capacity ?? 0,
             updatedAt: Date()
         )
+
+        // Best-effort sparkline series — a failure just leaves the lines hidden,
+        // never blocks the headline stats.
+        if let spark = await fetchSparklines() {
+            snapshot.mempoolSeries = spark.mempool.count >= 2 ? spark.mempool : nil
+            snapshot.priceUsdSeries = spark.priceUsd.count >= 2 ? spark.priceUsd : nil
+            snapshot.hashrateSeries = spark.hashrate.count >= 2 ? spark.hashrate : nil
+        }
+
+        return snapshot
+    }
+
+    // MARK: - Sparkline series
+
+    private struct Sparklines: Decodable {
+        let mempool: [Double]
+        let priceUsd: [Double]
+        let hashrate: [Double]
+    }
+
+    /// Fetches the downsampled trend arrays from the `network_stats_sparklines` RPC.
+    /// Returns nil on any failure (the widget then just omits the lines).
+    private static func fetchSparklines() async -> Sparklines? {
+        var request = URLRequest(url: sparklineEndpoint)
+        request.setValue(apiKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+            return try JSONDecoder().decode(Sparklines.self, from: data)
+        } catch {
+            return nil
+        }
     }
 }

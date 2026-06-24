@@ -9,6 +9,7 @@
 import WidgetKit
 import SwiftUI
 import UIKit
+import Charts
 
 // MARK: - Derived
 
@@ -81,6 +82,40 @@ struct BigValue: View {
     }
 }
 
+/// A tiny, axis-less trend line for the home widgets — the same minimal style as the
+/// Dashboard's PriceSparkline, but rendered purely from a baked-in values array (a
+/// widget can't fetch on render). Green when the window closed up, red when down,
+/// based on the series' own endpoints. Renders nothing for a too-short series.
+struct WidgetSparkline: View {
+    let values: [Double]
+    var height: CGFloat = 26
+
+    private static let up = Color(red: 0.30, green: 0.78, blue: 0.47)
+    private static let down = Color(red: 0.90, green: 0.33, blue: 0.33)
+
+    private struct Pt: Identifiable { let id: Int; let v: Double }
+    private var points: [Pt] { values.enumerated().map { Pt(id: $0.offset, v: $0.element) } }
+    private var color: Color { (values.last ?? 0) >= (values.first ?? 0) ? Self.up : Self.down }
+
+    var body: some View {
+        if values.count >= 2, let lo = values.min(), let hi = values.max() {
+            let pad = (hi - lo) == 0 ? max(abs(hi) * 0.05, 1) : (hi - lo) * 0.15
+            Chart(points) { p in
+                LineMark(x: .value("i", p.id), y: .value("v", p.v))
+                    .foregroundStyle(color)
+                    .interpolationMethod(.catmullRom)
+                    .lineStyle(StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
+            }
+            .chartXAxis(.hidden)
+            .chartYAxis(.hidden)
+            .chartYScale(domain: (lo - pad)...(hi + pad))
+            .chartLegend(.hidden)
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+        }
+    }
+}
+
 struct StaleDot: View {
     let stale: Bool
     var body: some View {
@@ -143,7 +178,9 @@ struct PriceWidgetView: View {
                 Text(WidgetFormat.pair(price, currency: entry.currency))
             case .accessoryCircular:
                 VStack(spacing: 0) {
-                    Text("BTC").font(.system(size: 9, weight: .medium))
+                    // Show the currency code (not "BTC"): priceCompact has no symbol,
+                    // so the code is what tells a non-USD user the figure's currency.
+                    Text(entry.currency.uppercased()).font(.system(size: 9, weight: .medium))
                     Text(WidgetFormat.priceCompact(price))
                         .font(.system(.caption, design: .rounded).weight(.bold))
                         .minimumScaleFactor(0.5).lineLimit(1)
