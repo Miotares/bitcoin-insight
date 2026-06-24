@@ -52,6 +52,13 @@ struct BitcoinWidgetsApp: App {
                         // foreground, so the app-switcher snapshot and the next open
                         // both start blurred (only relevant when the setting is on).
                         settings.balancesRevealed = false
+                        // Re-lock the Wallet tab only on a real background transition,
+                        // not on transient .inactive (Control Center, the Face ID sheet
+                        // itself, an incoming call) — otherwise resuming would force a
+                        // needless re-auth. The gate re-prompts on the next .active.
+                        if phase == .background {
+                            settings.isWalletUnlocked = false
+                        }
                     }
                 }
         }

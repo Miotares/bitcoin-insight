@@ -31,7 +31,7 @@ struct MainTabView: View {
             }
 
             if settings.showWalletTab {
-                WalletTabView()
+                WalletTabGate()
                     .tabItem {
                         Label("Wallet", systemImage: "wallet.pass.fill")
                     }

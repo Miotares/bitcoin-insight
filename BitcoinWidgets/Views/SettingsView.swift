@@ -13,9 +13,51 @@ struct SettingsView: View {
     @EnvironmentObject var store: StoreManager
     @Environment(\.openURL) private var openURL
     @State private var showPaywall = false
+    @State private var isTogglingLock = false
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–"
+    }
+
+    // MARK: - Wallet lock
+
+    /// Toggle label reflects the device's biometry (falls back to passcode wording).
+    private var walletLockTitle: String {
+        switch BiometricAuthService.biometryKind() {
+        case .faceID:  return "Require Face ID"
+        case .touchID: return "Require Touch ID"
+        case .opticID: return "Require Optic ID"
+        case .none:    return "Require Passcode"
+        }
+    }
+
+    /// Enabling the lock is free; DISABLING it requires authentication first, so the
+    /// protection can't simply be switched off from the (ungated) Settings tab to
+    /// bypass the wallet gate. A failed/cancelled auth leaves the toggle on.
+    private var walletLockBinding: Binding<Bool> {
+        Binding(
+            get: { settings.requireWalletAuth },
+            set: { newValue in
+                if newValue {
+                    // Don't enable an inert lock on a device that can't authenticate
+                    // (no passcode); the toggle is also .disabled in that case.
+                    guard BiometricAuthService.canAuthenticate() else { return }
+                    settings.requireWalletAuth = true
+                } else {
+                    // Disabling requires a successful auth (so the lock can't be turned
+                    // off from the ungated Settings tab to bypass the gate). Guard
+                    // re-entrancy so rapid taps can't stack prompts; a failed/cancelled
+                    // auth leaves it on.
+                    guard !isTogglingLock else { return }
+                    isTogglingLock = true
+                    Task { @MainActor in
+                        defer { isTogglingLock = false }
+                        let ok = await BiometricAuthService.authenticate(reason: "Turn off the wallet lock")
+                        if ok { settings.requireWalletAuth = false }
+                    }
+                }
+            }
+        )
     }
 
     // MARK: - Premium promo
@@ -155,6 +197,19 @@ struct SettingsView: View {
                         // MARK: - Wallet
                         if settings.showWalletTab {
                             SettingsSection(title: "Wallet") {
+                                SettingsRow(title: walletLockTitle) {
+                                    Toggle("", isOn: walletLockBinding)
+                                        .labelsHidden()
+                                        .tint(Color.bitcoinOrange)
+                                        // Block ENABLING an inert lock on a device that
+                                        // can't authenticate, but never block DISABLING
+                                        // (so removing the passcode after enabling can't
+                                        // strand the toggle stuck on).
+                                        .disabled(isTogglingLock || (!settings.requireWalletAuth && !BiometricAuthService.canAuthenticate()))
+                                }
+
+                                Divider().padding(.leading, 16)
+
                                 SettingsRow(title: "Hide Balances") {
                                     Toggle("", isOn: $settings.hideBalances)
                                         .labelsHidden()

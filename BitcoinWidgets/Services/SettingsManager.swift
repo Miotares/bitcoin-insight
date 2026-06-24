@@ -60,6 +60,24 @@ class SettingsManager: ObservableObject {
     /// True when private wallet amounts should be visually blurred right now.
     var balancesHidden: Bool { hideBalances && !balancesRevealed }
 
+    /// Privacy: when on, the Wallet tab is gated behind biometric / passcode auth.
+    /// Only the Wallet tab is protected — every other tab stays open.
+    @Published var requireWalletAuth: Bool {
+        didSet {
+            UserDefaults.standard.set(requireWalletAuth, forKey: "requireWalletAuth")
+            // Turning the lock on re-locks immediately (the user re-auths on entry).
+            if requireWalletAuth { isWalletUnlocked = false }
+        }
+    }
+
+    /// Session-only: true once the owner has authenticated this foreground session.
+    /// Never persisted — starts locked on every launch and is reset to locked when
+    /// the app is backgrounded (see `BitcoinWidgetsApp`).
+    @Published var isWalletUnlocked: Bool = false
+
+    /// True when the Wallet tab should currently show its lock screen.
+    var walletLocked: Bool { requireWalletAuth && !isWalletUnlocked }
+
     /// Live BTC prices per currency code, written by DashboardViewModel after every fetch.
     /// Never persisted — starts empty, populates within seconds of app launch.
     @Published var btcPrices: [String: Double] = [:]
@@ -89,6 +107,7 @@ class SettingsManager: ObservableObject {
         self.showExploreTab = UserDefaults.standard.object(forKey: "showExploreTab") as? Bool ?? true
         self.gapLimit = UserDefaults.standard.object(forKey: "gapLimit") as? Int ?? 20
         self.hideBalances = UserDefaults.standard.bool(forKey: "hideBalances")
+        self.requireWalletAuth = UserDefaults.standard.bool(forKey: "requireWalletAuth")
         WidgetBridge.setCurrency(preferredCurrency)   // mirror currency to widgets at launch
     }
 }

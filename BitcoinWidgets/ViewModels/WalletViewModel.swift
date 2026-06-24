@@ -66,6 +66,11 @@ class WalletViewModel: ObservableObject {
             .sink { [weak self] _ in self?.recomputeFiat() }
             .store(in: &cancellables)
 
+        // Seed the new-block baseline from the shared tip so a re-created VM (e.g. after
+        // a wallet-lock unlock tears down and rebuilds the Wallet tab) doesn't reset to
+        // 0 and miss the block edge that arrives right after unlock.
+        lastSeenBlockHeight = settings.observedBlockHeight
+
         // Auto-refresh balances when a new block arrives. The tip height is published
         // by DashboardViewModel's 10 s poll, which only runs while the app is in the
         // foreground — so this naturally never fires in the background.
