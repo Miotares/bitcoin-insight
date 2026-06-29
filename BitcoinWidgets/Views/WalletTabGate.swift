@@ -13,15 +13,10 @@ import SwiftUI
 
 struct WalletTabGate: View {
     @EnvironmentObject var settings: SettingsManager
-    @EnvironmentObject var router: AppRouter
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isAuthenticating = false
     @State private var didFail = false
-    /// Set only when the app truly backgrounds, so resuming from a transient
-    /// `.inactive` (Control Center, an incoming call, the auth sheet itself) does
-    /// NOT force a re-prompt — only a real background→foreground cycle does.
-    @State private var wasBackgrounded = false
 
     var body: some View {
         // The branch is driven ONLY by `walletLocked` (a real lock), so a transient
@@ -42,27 +37,11 @@ struct WalletTabGate: View {
             }
         }
         .overlay { privacyCover }
-        // Cold launch / first time the tab is built while already selected.
-        .onAppear { autoAuthenticate() }
-        // Switching to the Wallet tab.
-        .onChange(of: router.selectedTab) { _, tab in
-            if tab == 1 { autoAuthenticate() }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            switch phase {
-            case .background:
-                wasBackgrounded = true
-            case .active:
-                // Re-prompt only after a genuine background cycle (the app re-locks on
-                // `.background`), never on the auth sheet's own `.active` bounce — that
-                // bounce is what would otherwise trap the user in a re-prompt loop on
-                // cancel/failure and hide the lock screen's retry affordance.
-                if wasBackgrounded && router.selectedTab == 1 { autoAuthenticate() }
-                wasBackgrounded = false
-            default:
-                break
-            }
-        }
+        // NOTE: authentication is NOT triggered automatically. Opening the Wallet
+        // tab (cold launch, tab switch, or resuming from background) just presents
+        // WalletLockView with its explicit "Unlock with Face ID" button; the Face ID
+        // / passcode prompt fires only when the owner taps that button. This avoids a
+        // surprise system prompt the moment the tab is selected.
     }
 
     /// Opaque cover shown while the lock is enabled and the app is NOT active, so the
@@ -78,13 +57,9 @@ struct WalletTabGate: View {
         }
     }
 
-    /// Triggers auth only when the wallet is actually locked and nothing is in
-    /// flight — safe to call from several lifecycle hooks without stacking prompts.
-    private func autoAuthenticate() {
-        guard settings.walletLocked else { return }
-        authenticate()
-    }
-
+    /// Runs Face ID / Touch ID / passcode auth. Called only from the lock screen's
+    /// Unlock button — never automatically — and guarded so a second tap while a
+    /// prompt is already in flight is ignored.
     private func authenticate() {
         guard settings.walletLocked, !isAuthenticating else { return }
         isAuthenticating = true
@@ -175,7 +150,9 @@ struct WalletLockView: View {
                 }
 
                 if didFail {
-                    Text("Authentication failed. Try again.")
+                    // Covers both a real biometric failure and a deliberate cancel —
+                    // the owner taps the button below to retry either way.
+                    Text("Not unlocked. Tap to try again.")
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
