@@ -2,7 +2,7 @@
 //  MultiScrubChart.swift
 //  BitcoinWidgets
 //
-//  A reusable MULTI-SERIES (N lines, no area fill) time-series chart with
+//  A reusable MULTI-SERIES (N lines, optional band between two of them) time-series chart with
 //  finger-scrubbing. The multi-line sibling of `ScrubbableLineChart`, built to the
 //  SAME scrub feel + performance contract; it backs the Network-Fees chart (Fast /
 //  Medium / Slow) but is generic over any N series that share ONE x-axis.
@@ -122,6 +122,11 @@ struct MultiScrubChart: View {
     let showsXAxis: Bool
     /// When true, a compact [swatch + label] legend is drawn under the chart.
     let showsLegend: Bool
+    /// Optional (lower, upper) series indices: a soft gradient band is filled
+    /// between those two lines (e.g. the Slow…Fast fee spread).
+    let band: (lower: Int, upper: Int)?
+    /// Optional series index drawn thicker and on top of the others.
+    let emphasizedSeries: Int?
     /// Called whenever the selected ROW index changes (including to `nil` on lift).
     /// The caller reads `rows[index].values` to drive its own multi-series readout.
     let onSelectionChange: (Int?) -> Void
@@ -136,6 +141,8 @@ struct MultiScrubChart: View {
         valueFormat: @escaping (Double) -> String,
         showsXAxis: Bool = true,
         showsLegend: Bool = true,
+        band: (lower: Int, upper: Int)? = nil,
+        emphasizedSeries: Int? = nil,
         onSelectionChange: @escaping (Int?) -> Void = { _ in },
         onScrubbingChange: @escaping (Bool) -> Void = { _ in }
     ) {
@@ -149,6 +156,8 @@ struct MultiScrubChart: View {
         self.valueFormat = valueFormat
         self.showsXAxis = showsXAxis
         self.showsLegend = showsLegend
+        self.band = band
+        self.emphasizedSeries = emphasizedSeries
         self.onSelectionChange = onSelectionChange
         self.onScrubbingChange = onScrubbingChange
     }
@@ -245,7 +254,10 @@ struct MultiScrubChart: View {
                     xDomain: xDomain,
                     yDomain: yDomain,
                     showsXAxis: showsXAxis,
-                    xAxisFormat: xAxisFormat
+                    xAxisFormat: xAxisFormat,
+                    bandLower: band?.lower,
+                    bandUpper: band?.upper,
+                    emphasizedSeries: emphasizedSeries
                 )
                 .equatable()
 
@@ -640,6 +652,9 @@ private struct StaticCurves: View, Equatable {
     let yDomain: ClosedRange<Double>
     let showsXAxis: Bool
     let xAxisFormat: Date.FormatStyle
+    let bandLower: Int?
+    let bandUpper: Int?
+    let emphasizedSeries: Int?
 
     /// Equality drives SwiftUI's diffing: identical data + look ⇒ no rebuild.
     /// `Date.FormatStyle` is not reliably Equatable here, but it only changes when
@@ -652,21 +667,57 @@ private struct StaticCurves: View, Equatable {
             && lhs.xDomain == rhs.xDomain
             && lhs.yDomain == rhs.yDomain
             && lhs.showsXAxis == rhs.showsXAxis
+            && lhs.bandLower == rhs.bandLower
+            && lhs.bandUpper == rhs.bandUpper
+            && lhs.emphasizedSeries == rhs.emphasizedSeries
+    }
+
+    /// Series in paint order: the emphasized one last, so it sits on top.
+    private var drawOrder: [MultiScrubSeries] {
+        series.filter { $0.id != emphasizedSeries } + series.filter { $0.id == emphasizedSeries }
+    }
+
+    /// Top→bottom gradient for the band, running from the upper line's colour
+    /// to the lower line's colour so the spread reads as one soft ribbon.
+    private var bandGradient: LinearGradient {
+        let top = series.first { $0.id == bandUpper }?.color ?? .secondary
+        let bottom = series.first { $0.id == bandLower }?.color ?? .secondary
+        return LinearGradient(
+            colors: [top.opacity(0.22), bottom.opacity(0.08)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 
     var body: some View {
         // One LineMark series per column. Each row contributes one point per series,
         // drawn DIRECTLY in the series color via `.foregroundStyle(s.color)` (NOT a
-        // label-keyed `chartForegroundStyleScale`), NO area fill, catmull-rom,
-        // lineWidth 1.6 — over the decimated rows, at a fraction of the layout cost
-        // of the raw set. The `series:` grouping key is the series' POSITIONAL `id`,
-        // not its label, so two series that happen to share a label still stroke as
-        // N distinct lines (a label-keyed scale would collapse their domain and merge
-        // them into one mis-colored line). Because every row carries a value for
-        // every series at one shared date, the lines share an identical x grid, which
-        // is what lets the indicator dots align.
+        // label-keyed `chartForegroundStyleScale`) over the decimated rows. The
+        // `series:` grouping key is the series' POSITIONAL `id`, not its label, so
+        // two series that happen to share a label still stroke as N distinct lines.
+        // Because every row carries a value for every series at one shared date, the
+        // lines share an identical x grid, which is what lets the indicator dots align.
+        //
+        // Monotone interpolation (not catmull-rom): it stays smooth but never
+        // overshoots between points, so a line can't dip below its real minimum or
+        // cross the band edge — important for low, quantized values like fees.
         Chart {
-            ForEach(series) { s in
+            if let lo = bandLower, let hi = bandUpper {
+                ForEach(rows) { row in
+                    if row.values.indices.contains(lo), row.values.indices.contains(hi) {
+                        AreaMark(
+                            x: .value("Date", row.date),
+                            yStart: .value("Lower", row.values[lo]),
+                            yEnd: .value("Upper", row.values[hi])
+                        )
+                        .foregroundStyle(bandGradient)
+                        .interpolationMethod(.monotone)
+                    }
+                }
+            }
+
+            ForEach(drawOrder) { s in
+                let emphasized = s.id == emphasizedSeries
                 ForEach(rows) { row in
                     if row.values.indices.contains(s.id) {
                         LineMark(
@@ -674,10 +725,24 @@ private struct StaticCurves: View, Equatable {
                             y: .value("Value", row.values[s.id]),
                             series: .value("Series", s.id)
                         )
-                        .foregroundStyle(s.color)
-                        .interpolationMethod(.catmullRom)
-                        .lineStyle(StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+                        .foregroundStyle(emphasized || emphasizedSeries == nil ? s.color : s.color.opacity(0.75))
+                        .interpolationMethod(.monotone)
+                        .lineStyle(StrokeStyle(
+                            lineWidth: emphasized ? 2.4 : (emphasizedSeries == nil ? 1.6 : 1.2),
+                            lineCap: .round,
+                            lineJoin: .round
+                        ))
                     }
+                }
+
+                // A small dot on the newest value marks the live end of each line.
+                if let last = rows.last, last.values.indices.contains(s.id) {
+                    PointMark(
+                        x: .value("Date", last.date),
+                        y: .value("Value", last.values[s.id])
+                    )
+                    .foregroundStyle(s.color)
+                    .symbolSize(emphasized ? 36 : 18)
                 }
             }
         }
