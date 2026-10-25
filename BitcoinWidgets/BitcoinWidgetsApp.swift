@@ -57,6 +57,7 @@ struct BitcoinWidgetsApp: App {
                         // itself, an incoming call) — otherwise resuming would force a
                         // needless re-auth. The gate re-prompts on the next .active.
                         if phase == .background {
+                            WalletManager.shared.flushPendingWrites()
                             settings.isWalletUnlocked = false
                         }
                     }

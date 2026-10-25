@@ -32,7 +32,7 @@ struct AddWalletView: View {
                             Text("WATCH-ONLY")
                                 .font(.caption).fontWeight(.semibold).tracking(0.8)
                                 .foregroundStyle(Theme.Accent.brand)
-                            Text("Enter your **xpub, ypub, zpub** or a **Bitcoin address** — never a private key. It stays read-only; balances come from **mempool.space**, so your addresses are visible to it.")
+                            Text("Enter your **xpub, ypub, zpub** or a **Bitcoin address** — never a private key. It stays read-only; balances come from **mempool.space** (or **Blockstream** if mempool.space is unreachable), so your addresses are visible to them.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)

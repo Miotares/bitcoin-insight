@@ -29,15 +29,22 @@ final class KeychainService {
 
     // MARK: - Generic Keychain Operations
 
+    /// Updates in place (atomic), adding only if the item doesn't exist yet. The old
+    /// delete-then-add left a window where a crash or kill wiped every wallet.
     func save(key: String, data: Data) {
-        delete(key: key)
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
-            kSecAttrAccount: key,
+            kSecAttrAccount: key
+        ]
+        let attributes: [CFString: Any] = [
             kSecValueData: data,
             kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlock
         ]
-        SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        guard status == errSecItemNotFound else { return }
+        var addQuery = query
+        addQuery.merge(attributes) { _, new in new }
+        SecItemAdd(addQuery as CFDictionary, nil)
     }
 
     func load(key: String) -> Data? {

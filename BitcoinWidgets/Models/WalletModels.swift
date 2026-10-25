@@ -40,11 +40,27 @@ struct WalletAddress: Identifiable, Codable {
 struct WalletTransaction: Identifiable, Codable {
     var id: String { txid }
     let txid: String
-    let confirmed: Bool
-    let blockTime: Int?
-    let valueSats: Int          // positive=received, negative=sent
-    let fee: Int?
+    var confirmed: Bool
+    var blockTime: Int?
+    var valueSats: Int          // positive=received, negative=sent (net across the wallet)
+    var fee: Int?
     let sourceAddress: String
+    /// Net effect of this tx on each wallet address (address → sats). An HD tx often
+    /// touches several wallet addresses (spend + change); each address history only
+    /// sees its own share, so the wallet-level `valueSats` is the sum of all shares.
+    /// nil on transactions persisted before this field existed.
+    var addressDeltas: [String: Int]? = nil
+
+    /// Combines a stored view of this tx with a fresher one: confirmation status
+    /// comes from `newer`, per-address shares are unioned and re-summed. Legacy
+    /// entries without shares are simply replaced.
+    func merging(_ newer: WalletTransaction) -> WalletTransaction {
+        guard let old = addressDeltas, let new = newer.addressDeltas else { return newer }
+        var merged = newer
+        merged.addressDeltas = old.merging(new) { _, fresh in fresh }
+        merged.valueSats = merged.addressDeltas!.values.reduce(0, +)
+        return merged
+    }
 }
 
 struct Wallet: Identifiable, Codable {

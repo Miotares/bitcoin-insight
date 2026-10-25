@@ -88,7 +88,7 @@ BitcoinWidgets/
 
 ## Privacy
 
-Bitcoin Insight is a read-only tool. It never asks for private keys or seed phrases. Wallet data (xpub keys and addresses) is stored exclusively in the iOS Keychain on the user's device and is never transmitted to any server other than the public mempool.space API for balance and transaction lookups.
+Bitcoin Insight is a read-only tool. It never asks for private keys or seed phrases. Wallet data (xpub keys and addresses) is stored exclusively in the iOS Keychain on the user's device and is never transmitted to any server other than the public mempool.space API (or, only while mempool.space is unreachable, the Blockstream Esplora API) for balance and transaction lookups.
 
 ## License
 

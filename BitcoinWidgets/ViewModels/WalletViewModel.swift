@@ -27,9 +27,19 @@ class WalletViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
 
     private var gapLimit: Int { settings.gapLimit }
-    /// Max simultaneous address lookups. Kept modest so bursts stay within
-    /// mempool.space limits; the 429 back-off in WalletAPIService is the safety net.
-    private let maxConcurrentRequests = 5
+    /// Task-group window for parallel lookups. The process-wide RequestGate in
+    /// WalletAPIService decides how many requests are actually in flight (adaptive,
+    /// shared by all syncs), so this only needs to be large enough to keep it fed.
+    private let maxConcurrentRequests = 8
+
+    /// Wallet IDs with a sync in flight. Static so it survives the VM being torn down
+    /// and rebuilt (wallet lock → unlock): the old VM's task keeps running, and the new
+    /// VM must not start a second, competing scan of the same wallet.
+    private static var activeSyncs = Set<UUID>()
+    /// When each wallet last re-checked ALL of its used addresses (see incremental refresh).
+    private static var lastFullSweep: [UUID: Date] = [:]
+    /// Automatic refreshes re-check the long tail of emptied addresses at most this often.
+    private let fullSweepInterval: TimeInterval = 30 * 60
     private var settings = SettingsManager.shared
     private var cancellables = Set<AnyCancellable>()
 
@@ -87,7 +97,7 @@ class WalletViewModel: ObservableObject {
     /// Wallets that never completed their initial scan (lastScanned == nil) are
     /// restarted automatically when the app opens.
     private func resumePendingSyncs() {
-        for wallet in wallets where wallet.lastScanned == nil {
+        for wallet in wallets where wallet.lastScanned == nil && !Self.activeSyncs.contains(wallet.id) {
             var syncing = wallet
             syncing.isSyncing = true
             WalletManager.shared.updateWallet(syncing)
@@ -125,10 +135,10 @@ class WalletViewModel: ObservableObject {
         autoRefreshOnNewBlock()
     }
 
-    /// Triggers a lightweight incremental refresh of each idle, already-scanned wallet
-    /// — serial across wallets so it never bursts the mempool.space rate limit. Wallets
-    /// still doing their first scan, already syncing, or refreshed in the last 45 s are
-    /// skipped (the latter debounces against a just-completed manual pull).
+    /// Triggers a lightweight incremental refresh of each idle, already-scanned wallet.
+    /// Wallets run in parallel — the shared RequestGate keeps the total request rate
+    /// bounded. Wallets still doing their first scan, already syncing, or refreshed in
+    /// the last 45 s are skipped (the latter debounces against a just-completed pull).
     private func autoRefreshOnNewBlock() {
         guard !isAutoRefreshing else { return }
         let now = Date()
@@ -142,8 +152,12 @@ class WalletViewModel: ObservableObject {
         isAutoRefreshing = true
         Task { @MainActor [weak self] in
             guard let self else { return }
-            for wallet in due {
-                await self.refreshWallet(wallet)   // incremental path, serial across wallets
+            await withTaskGroup(of: Void.self) { group in
+                for wallet in due {
+                    let sweepDue = now.timeIntervalSince(Self.lastFullSweep[wallet.id] ?? .distantPast)
+                        > self.fullSweepInterval
+                    group.addTask { await self.refreshWallet(wallet, fullSweep: sweepDue) }
+                }
             }
             self.isAutoRefreshing = false
         }
@@ -157,7 +171,7 @@ class WalletViewModel: ObservableObject {
     /// honest first-scan copy because `addresses` is empty again.
     func rescanWallet(_ wallet: Wallet) {
         let live = WalletManager.shared.wallets.first(where: { $0.id == wallet.id }) ?? wallet
-        guard !live.isSyncing else { return }
+        guard !live.isSyncing, !Self.activeSyncs.contains(live.id) else { return }
         Haptics.trigger(.medium)
         var reset = live
         reset.addresses = []
@@ -229,10 +243,13 @@ class WalletViewModel: ObservableObject {
         // The actual sync runs in an independent unstructured Task — not a child
         // of SwiftUI's refreshable task — so URLSession calls are never cancelled
         // by the re-renders that fire when isSyncing changes via Combine.
+        // Wallets refresh in parallel; the shared RequestGate bounds the total rate.
         Task { @MainActor [weak self] in
             guard let self else { return }
-            for wallet in wallets {
-                await refreshWallet(wallet)
+            await withTaskGroup(of: Void.self) { group in
+                for wallet in self.wallets {
+                    group.addTask { await self.refreshWallet(wallet) }
+                }
             }
         }
     }
@@ -247,11 +264,14 @@ class WalletViewModel: ObservableObject {
         }
     }
 
-    func refreshWallet(_ wallet: Wallet) async {
+    /// `fullSweep: false` (automatic new-block refresh) skips re-checking emptied,
+    /// inactive addresses — see incrementalRefreshHDWallet.
+    func refreshWallet(_ wallet: Wallet, fullSweep: Bool = true) async {
         errorMessage = nil
         // Read directly from WalletManager to avoid Combine-lag race conditions
         let live = WalletManager.shared.wallets.first(where: { $0.id == wallet.id }) ?? wallet
-        guard !live.isSyncing else { return }
+        guard !live.isSyncing, Self.activeSyncs.insert(live.id).inserted else { return }
+        defer { Self.activeSyncs.remove(live.id) }
 
         var syncing = live
         syncing.isSyncing = true
@@ -263,7 +283,7 @@ class WalletViewModel: ObservableObject {
                 // Incremental if we already have data; full scan if first time
                 updated = live.addresses.isEmpty
                     ? try await scanHDWallet(live)
-                    : try await incrementalRefreshHDWallet(live)
+                    : try await incrementalRefreshHDWallet(live, fullSweep: fullSweep)
             } else {
                 updated = try await syncSingleAddress(live)
             }
@@ -273,7 +293,8 @@ class WalletViewModel: ObservableObject {
             updateTotals()
             recomputeFiat()
         } catch {
-            // Preserve current WalletManager state — don't overwrite with the pre-refresh snapshot
+            // Preserve current WalletManager state (incl. any partial save made during
+            // the refresh) — don't overwrite with the pre-refresh snapshot.
             let stateAtError = WalletManager.shared.wallets.first(where: { $0.id == live.id }) ?? live
             var failed = stateAtError
             failed.isSyncing = false
@@ -286,17 +307,20 @@ class WalletViewModel: ObservableObject {
 
     // MARK: - Background Sync
 
+    /// First scan (or resumed / forced rescan) of a wallet that has never completed one.
     private func backgroundSync(walletID: UUID) async {
-        guard let wallet = WalletManager.shared.wallets.first(where: { $0.id == walletID }) else { return }
+        guard let wallet = WalletManager.shared.wallets.first(where: { $0.id == walletID }),
+              wallet.lastScanned == nil,                       // finished meanwhile (other VM)
+              Self.activeSyncs.insert(walletID).inserted        // already running (other VM)
+        else { return }
+        defer { Self.activeSyncs.remove(walletID) }
 
         do {
             var updated: Wallet
             if wallet.type.isHDWallet {
-                // Resume from the last saved address if the scan was interrupted;
-                // only do a full scan if nothing was saved yet.
-                updated = wallet.addresses.isEmpty
-                    ? try await scanHDWallet(wallet)
-                    : try await resumeHDWalletScan(wallet)
+                // Continues after the last saved address per chain if the scan was
+                // interrupted; starts at index 0 if nothing was saved yet.
+                updated = try await scanHDWallet(wallet)
             } else {
                 // syncSingleAddress handles both fresh starts and mid-fetch resumes:
                 // it seeds mergedTxs from whatever is already persisted, then
@@ -346,32 +370,42 @@ class WalletViewModel: ObservableObject {
                 return apiError.localizedDescription ?? error.localizedDescription
             }
         }
-        // NSError from WalletScan domain — strip "[address] " prefix for cleaner display
-        let msg = error.localizedDescription
-        if msg.hasPrefix("["), let range = msg.range(of: "] ") {
-            return String(msg[range.upperBound...])
-        }
-        return msg
+        return error.localizedDescription
     }
 
     // MARK: - Batched Gap-Limit Chain Scan
+
+    /// Newly found used addresses of one chain plus their full histories.
+    private struct ChainScanResult {
+        var addresses: [WalletAddress] = []
+        var histories: [String: [WalletTransaction]] = [:]
+    }
+
+    /// Latest per-chain results of a running first scan, so the two concurrently
+    /// scanned chains can save their combined progress.
+    private final class ScanProgress {
+        let base: Wallet
+        var chains: [Int: ChainScanResult] = [:]
+        init(base: Wallet) { self.base = base }
+    }
 
     /// Scans one chain (0 = external, 1 = change) for used addresses starting at
     /// `startIndex`, using bounded-parallel batches instead of one-at-a-time.
     ///
     /// Each batch probes exactly the number of addresses still needed to close the
-    /// gap (`gapLimit - consecutiveEmpty`) in parallel, then processes the results
-    /// **in index order** — so the gap logic and the stored state are identical to
-    /// the old serial scan, just far faster. Newly found addresses/txs are appended
-    /// to the inout accumulators, and the wallet is progressively saved after every
-    /// batch that yields a hit (so progress survives an interruption).
+    /// gap (`gapLimit - consecutiveEmpty`) in parallel and evaluates the results
+    /// **in index order**, so the gap logic is identical to a serial scan. The
+    /// histories of all hits in a batch are then fetched in parallel too (they used
+    /// to be fetched one address at a time — the main cost of a first scan).
+    /// With `progress`, the wallet is saved after every batch that yields a hit, so
+    /// an interrupted scan resumes from there.
     private func scanChain(
         _ wallet: Wallet,
         chain: Int,
         startIndex: Int,
-        allAddresses: inout [WalletAddress],
-        allTransactions: inout [WalletTransaction]
-    ) async throws {
+        progress: ScanProgress? = nil
+    ) async throws -> ChainScanResult {
+        var result = ChainScanResult()
         var consecutiveEmpty = 0
         var index = startIndex
 
@@ -383,26 +417,11 @@ class WalletViewModel: ObservableObject {
                     from: wallet.publicKey, chain: chain, index: $0, type: wallet.type))
             }
 
-            // Fetch the whole batch in parallel.
-            let infos: [String: AddressAPIResponse]
-            do {
-                infos = try await WalletAPIService.fetchAddressDataConcurrently(
-                    derived.map(\.address), maxConcurrent: maxConcurrentRequests
-                )
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch let e as URLError {
-                throw e  // pass through unwrapped so isCancellation() / friendlyErrorMessage() work
-            } catch {
-                throw NSError(
-                    domain: "WalletScan", code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "[chain \(chain)] \(error.localizedDescription)"]
-                )
-            }
+            let infos = try await WalletAPIService.fetchAddressDataConcurrently(
+                derived.map(\.address), maxConcurrent: maxConcurrentRequests
+            )
 
-            var foundInBatch = false
-
-            // Process strictly in index order to mirror the serial gap algorithm.
+            var hits: [(index: Int, address: String, info: AddressAPIResponse)] = []
             for item in derived {
                 guard let info = infos[item.address] else { continue }
                 if info.txCount == 0 {
@@ -410,160 +429,217 @@ class WalletViewModel: ObservableObject {
                     if consecutiveEmpty >= gapLimit { break }   // gap closed — ignore rest of batch
                 } else {
                     consecutiveEmpty = 0
-                    let txs = try await fetchAllTransactions(
-                        for: item.address, expectedConfirmedCount: info.confirmedTxCount)
-                    allAddresses.append(WalletAddress(
-                        id: UUID(), address: item.address,
-                        derivationIndex: item.index, chain: chain,
-                        balanceSats: info.balanceSats, txCount: info.txCount,
-                        mempoolTxCount: info.mempoolTxCount
-                    ))
-                    allTransactions.append(contentsOf: txs)
-                    foundInBatch = true
+                    hits.append((item.index, item.address, info))
                 }
             }
 
-            // Progressive save after each batch that found new addresses.
-            if foundInBatch {
-                var partial = wallet
-                partial.addresses = allAddresses
-                partial.transactions = deduped(allTransactions)
-                partial.isSyncing = true
-                WalletManager.shared.updateWallet(partial)
-                totalBalanceSats = WalletManager.shared.wallets.reduce(0) { $0 + $1.totalBalanceSats }
+            if !hits.isEmpty {
+                let histories = try await WalletAPIService.fetchHistoriesConcurrently(
+                    hits.map { ($0.address, $0.info.confirmedTxCount) },
+                    maxConcurrent: maxConcurrentRequests
+                )
+                for hit in hits {
+                    result.addresses.append(WalletAddress(
+                        id: UUID(), address: hit.address,
+                        derivationIndex: hit.index, chain: chain,
+                        balanceSats: hit.info.balanceSats, txCount: hit.info.txCount,
+                        mempoolTxCount: hit.info.mempoolTxCount
+                    ))
+                    result.histories[hit.address] = histories[hit.address] ?? []
+                }
+                if let progress {
+                    progress.chains[chain] = result
+                    saveScanProgress(progress)
+                }
             }
 
             index += batchSize
         }
+        return result
+    }
+
+    private func saveScanProgress(_ progress: ScanProgress) {
+        let found = [0, 1].compactMap { progress.chains[$0] }
+        var partial = progress.base
+        partial.addresses = progress.base.addresses + found.flatMap(\.addresses)
+        partial.transactions = applyHistories(
+            found.reduce(into: [String: [WalletTransaction]]()) { $0.merge($1.histories) { _, new in new } },
+            to: progress.base.transactions)
+        partial.isSyncing = true
+        WalletManager.shared.updateWallet(partial)
+        updateTotals()
+    }
+
+    private func nextIndex(_ wallet: Wallet, chain: Int) -> Int {
+        (wallet.addresses.filter { $0.chain == chain }.compactMap(\.derivationIndex).max() ?? -1) + 1
     }
 
     // MARK: - Full HD Wallet Gap-Limit Scan
 
+    /// Gap-limit scan of both chains — run concurrently — starting after the highest
+    /// index already saved per chain: index 0 on a fresh scan, so the same path also
+    /// resumes a scan that was interrupted (app closed mid-scan).
     private func scanHDWallet(_ wallet: Wallet) async throws -> Wallet {
-        var allAddresses: [WalletAddress] = []
-        var allTransactions: [WalletTransaction] = []
-
-        for chain in 0..<2 {
-            try await scanChain(
-                wallet, chain: chain, startIndex: 0,
-                allAddresses: &allAddresses, allTransactions: &allTransactions
-            )
-        }
+        let progress = ScanProgress(base: wallet)
+        async let external = scanChain(
+            wallet, chain: 0, startIndex: nextIndex(wallet, chain: 0), progress: progress)
+        async let change = scanChain(
+            wallet, chain: 1, startIndex: nextIndex(wallet, chain: 1), progress: progress)
+        let found = try await [external, change]
 
         var updated = wallet
-        updated.addresses = allAddresses
-        updated.transactions = deduped(allTransactions)
-        return updated
-    }
-
-    // MARK: - Resume Interrupted HD Wallet Scan
-
-    /// Called when a background scan was interrupted (app closed mid-scan).
-    /// Keeps all already-found addresses intact and continues the gap-limit scan
-    /// from the index after the last known address per chain.
-    private func resumeHDWalletScan(_ wallet: Wallet) async throws -> Wallet {
-        var allAddresses = wallet.addresses
-        var allTransactions = wallet.transactions
-
-        for chain in 0..<2 {
-            let maxKnown = wallet.addresses
-                .filter { $0.chain == chain }
-                .compactMap { $0.derivationIndex }
-                .max() ?? -1
-
-            try await scanChain(
-                wallet, chain: chain, startIndex: maxKnown + 1,
-                allAddresses: &allAddresses, allTransactions: &allTransactions
-            )
-        }
-
-        var updated = wallet
-        updated.addresses = allAddresses
-        updated.transactions = deduped(allTransactions)
+        updated.addresses = wallet.addresses + found.flatMap(\.addresses)
+        updated.transactions = applyHistories(
+            found.reduce(into: [String: [WalletTransaction]]()) { $0.merge($1.histories) { _, new in new } },
+            to: wallet.transactions)
         return updated
     }
 
     // MARK: - Incremental HD Wallet Refresh
 
-    /// Smart refresh: re-checks existing (used) addresses in parallel and scans
-    /// beyond the last known index per chain. Does NOT re-derive from index 0.
-    private func incrementalRefreshHDWallet(_ wallet: Wallet) async throws -> Wallet {
-        var updatedAddresses = wallet.addresses
-        var mergedTransactions = wallet.transactions
-
-        // Step 1: Re-check all known addresses in parallel (no per-address delay).
+    /// Re-checks known addresses and returns their fresh stats plus the histories of
+    /// those that changed. A history is re-fetched when:
+    ///  • the effective (confirmed+mempool) count changed, OR
+    ///  • there is pending activity now (a fresh unconfirmed tx), OR
+    ///  • there WAS pending activity last time — a mempool→confirmed flip leaves the
+    ///    effective count identical, so without this clause the tx would stay
+    ///    "Unconfirmed" forever (and a dropped / replaced one would never disappear), OR
+    ///  • `refetchAll` (one-time rebuild of legacy tx lists).
+    private func recheck(
+        _ addresses: [WalletAddress],
+        knownConfirmedTxids: Set<String>,
+        refetchAll: Bool
+    ) async throws -> (addresses: [WalletAddress], histories: [String: [WalletTransaction]]) {
+        guard !addresses.isEmpty else { return ([], [:]) }
         let infos = try await WalletAPIService.fetchAddressDataConcurrently(
-            updatedAddresses.map(\.address), maxConcurrent: maxConcurrentRequests
+            addresses.map(\.address), maxConcurrent: maxConcurrentRequests
         )
 
-        // Decide which addresses need a transaction re-fetch. Re-fetch when:
-        //  • the effective (confirmed+mempool) count changed, OR
-        //  • there is pending activity now (a fresh unconfirmed tx), OR
-        //  • there WAS pending activity last time — a mempool→confirmed flip leaves the
-        //    effective count identical, so without this clause the tx would stay
-        //    "Unconfirmed" forever.
+        var updated = addresses
         var toRefetch: [(address: String, expectedConfirmedCount: Int?)] = []
-        for i in updatedAddresses.indices {
-            guard let info = infos[updatedAddresses[i].address] else { continue }
-            let oldEffective = updatedAddresses[i].txCount
-            let oldMempool = updatedAddresses[i].mempoolTxCount ?? 0
-            updatedAddresses[i].balanceSats = info.balanceSats
-            updatedAddresses[i].txCount = info.txCount
-            updatedAddresses[i].mempoolTxCount = info.mempoolTxCount
-            if info.txCount != oldEffective || info.mempoolTxCount > 0 || oldMempool > 0 {
-                toRefetch.append((updatedAddresses[i].address, info.confirmedTxCount))
+        for i in updated.indices {
+            guard let info = infos[updated[i].address] else { continue }
+            let oldEffective = updated[i].txCount
+            let oldMempool = updated[i].mempoolTxCount ?? 0
+            updated[i].balanceSats = info.balanceSats
+            updated[i].txCount = info.txCount
+            updated[i].mempoolTxCount = info.mempoolTxCount
+            if info.txCount != oldEffective || info.mempoolTxCount > 0 || oldMempool > 0
+                || (refetchAll && info.txCount > 0) {
+                toRefetch.append((updated[i].address, info.confirmedTxCount))
             }
         }
 
-        // Fetch the affected histories concurrently, then merge serially on the actor.
-        if !toRefetch.isEmpty {
-            let histories = try await WalletAPIService.fetchHistoriesConcurrently(
-                toRefetch, maxConcurrent: maxConcurrentRequests
-            )
-            for address in toRefetch.map(\.address) {
-                if let txs = histories[address] { mergeTxs(&mergedTransactions, from: txs) }
-            }
-        }
+        let histories = try await WalletAPIService.fetchHistoriesConcurrently(
+            toRefetch, knownConfirmedTxids: knownConfirmedTxids, maxConcurrent: maxConcurrentRequests
+        )
+        return (updated, histories)
+    }
 
-        // Step 2: Scan for new addresses beyond the last known index per chain.
-        for chain in 0..<2 {
-            let maxKnown = wallet.addresses
-                .filter { $0.chain == chain }
-                .compactMap { $0.derivationIndex }
-                .max() ?? -1
+    /// Smart refresh in two phases:
+    ///
+    /// 1. "Hot" addresses — funded, pending, or among the newest few per chain (just
+    ///    handed out, so the likeliest to be paid) — are re-checked concurrently with
+    ///    the gap scan beyond the last known index of both chains. The result is saved
+    ///    right away, so the headline balance updates before phase 2 runs.
+    /// 2. The long tail of emptied, inactive addresses is re-checked only on a full
+    ///    sweep (manual refresh, or at most every 30 min automatically). Funds landing
+    ///    on a reused old address are therefore still found, without paying for
+    ///    hundreds of empty-address lookups on every new block.
+    ///
+    /// Histories are fetched incrementally: pagination stops at the first already
+    /// known confirmed tx, so a busy address costs one request instead of its whole
+    /// history. Tx lists saved before per-address shares existed are rebuilt once
+    /// from full histories (which also corrects their net amounts).
+    private func incrementalRefreshHDWallet(_ wallet: Wallet, fullSweep: Bool) async throws -> Wallet {
+        let rebuild = wallet.transactions.contains { $0.addressDeltas == nil }
+        let known: Set<String> = rebuild
+            ? []
+            : Set(wallet.transactions.lazy.filter(\.confirmed).map(\.txid))
 
-            try await scanChain(
-                wallet, chain: chain, startIndex: maxKnown + 1,
-                allAddresses: &updatedAddresses, allTransactions: &mergedTransactions
-            )
+        let newestPerChain: Set<String> = Set([0, 1].flatMap { chain in
+            wallet.addresses.filter { $0.chain == chain }
+                .sorted { ($0.derivationIndex ?? 0) > ($1.derivationIndex ?? 0) }
+                .prefix(5).map(\.address)
+        })
+        let isHot: (WalletAddress) -> Bool = {
+            rebuild || $0.balanceSats != 0 || ($0.mempoolTxCount ?? 0) > 0
+                || newestPerChain.contains($0.address)
         }
+        let hot = wallet.addresses.filter(isHot)
+        let cold = wallet.addresses.filter { !isHot($0) }
+
+        // Phase 1 — hot re-check and both frontier scans, all concurrently.
+        async let hotResult = recheck(hot, knownConfirmedTxids: known, refetchAll: rebuild)
+        async let external = scanChain(wallet, chain: 0, startIndex: nextIndex(wallet, chain: 0))
+        async let change = scanChain(wallet, chain: 1, startIndex: nextIndex(wallet, chain: 1))
+        let (rechecked, frontier) = try await (hotResult, [external, change])
 
         var updated = wallet
-        updated.addresses = updatedAddresses
-        updated.transactions = deduped(mergedTransactions)
+        updated.addresses = replacing(wallet.addresses, with: rechecked.addresses)
+            + frontier.flatMap(\.addresses)
+        var histories = rechecked.histories
+        for chain in frontier { histories.merge(chain.histories) { _, new in new } }
+        updated.transactions = applyHistories(histories, to: rebuild ? [] : wallet.transactions)
+
+        if rebuild { Self.lastFullSweep[wallet.id] = Date() }
+        guard fullSweep, !rebuild, !cold.isEmpty else { return updated }
+
+        // Show phase-1 results now; the cold sweep below only rarely changes anything.
+        var partial = updated
+        partial.isSyncing = true
+        WalletManager.shared.updateWallet(partial)
+        updateTotals()
+        recomputeFiat()
+
+        // Phase 2 — cold sweep.
+        let swept = try await recheck(cold, knownConfirmedTxids: known, refetchAll: false)
+        updated.addresses = replacing(updated.addresses, with: swept.addresses)
+        updated.transactions = applyHistories(swept.histories, to: updated.transactions)
+        Self.lastFullSweep[wallet.id] = Date()
         return updated
     }
 
-    // MARK: - Transaction Helpers
-
-    /// Fetches ALL transactions for `address`. Delegates to the service-level
-    /// paginator, which skips chain pagination when the first page already covers
-    /// every confirmed tx (`expectedConfirmedCount`) — the common case for an HD
-    /// address with few transactions.
-    private func fetchAllTransactions(
-        for address: String,
-        expectedConfirmedCount: Int? = nil
-    ) async throws -> [WalletTransaction] {
-        try await WalletAPIService.fetchFullHistory(
-            address: address, expectedConfirmedCount: expectedConfirmedCount)
+    /// `addresses` with each entry replaced by its fresh counterpart from `fresh`.
+    private func replacing(_ addresses: [WalletAddress], with fresh: [WalletAddress]) -> [WalletAddress] {
+        let byAddress = Dictionary(fresh.map { ($0.address, $0) }, uniquingKeysWith: { _, new in new })
+        return addresses.map { byAddress[$0.address] ?? $0 }
     }
 
-    /// Merges `incoming` into `existing`, updating confirmation status for known txids.
+    // MARK: - Transaction Merging
+
+    /// Folds freshly fetched per-address histories into a wallet's tx list (by txid,
+    /// summing each address's share — see WalletTransaction.merging). For every
+    /// address in `histories`, an unconfirmed tx it no longer reports (RBF-replaced
+    /// or dropped from the mempool) loses that address's share and disappears once
+    /// no share is left; such phantom "pending" txs used to stay forever.
+    private func applyHistories(
+        _ histories: [String: [WalletTransaction]],
+        to transactions: [WalletTransaction]
+    ) -> [WalletTransaction] {
+        var list = transactions
+        for (address, fresh) in histories {
+            mergeTxs(&list, from: fresh)
+            let freshIDs = Set(fresh.map(\.txid))
+            for i in list.indices where !list[i].confirmed && !freshIDs.contains(list[i].txid) {
+                guard var deltas = list[i].addressDeltas, deltas[address] != nil else { continue }
+                deltas[address] = nil
+                list[i].addressDeltas = deltas
+                list[i].valueSats = deltas.values.reduce(0, +)
+            }
+        }
+        return list.filter { $0.addressDeltas?.isEmpty != true }
+    }
+
+    /// Merges `incoming` into `existing` by txid without pruning anything.
     private func mergeTxs(_ existing: inout [WalletTransaction], from incoming: [WalletTransaction]) {
+        var position: [String: Int] = [:]
+        for (i, tx) in existing.enumerated() { position[tx.txid] = i }
         for tx in incoming {
-            if let idx = existing.firstIndex(where: { $0.txid == tx.txid }) {
-                existing[idx] = tx
+            if let i = position[tx.txid] {
+                existing[i] = existing[i].merging(tx)
             } else {
+                position[tx.txid] = existing.count
                 existing.append(tx)
             }
         }
@@ -571,13 +647,58 @@ class WalletViewModel: ObservableObject {
 
     // MARK: - Single Address Sync
 
+    /// Sync for a single-address wallet. A wallet that completed a sync before takes
+    /// the cheap incremental path; otherwise this is a full (or resumed) initial sync.
+    private func syncSingleAddress(_ wallet: Wallet) async throws -> Wallet {
+        if wallet.lastScanned != nil, !wallet.transactions.isEmpty {
+            return try await refreshSingleAddress(wallet)
+        }
+        return try await initialSyncSingleAddress(wallet)
+    }
+
+    /// Incremental refresh: only the pages newer than the newest known confirmed tx.
+    private func refreshSingleAddress(_ wallet: Wallet) async throws -> Wallet {
+        let address = wallet.publicKey
+        let info = try await WalletAPIService.fetchAddressData(address: address)
+
+        // Single-address values are already per-address, so legacy entries can be
+        // given their share in place (no rebuild needed).
+        let stored = wallet.transactions.map { tx -> WalletTransaction in
+            var t = tx
+            if t.addressDeltas == nil { t.addressDeltas = [address: t.valueSats] }
+            return t
+        }
+        let known = Set(stored.lazy.filter(\.confirmed).map(\.txid))
+        let fresh = try await WalletAPIService.fetchFullHistory(
+            address: address, expectedConfirmedCount: info.confirmedTxCount, knownConfirmedTxids: known)
+        var merged = applyHistories([address: fresh], to: stored)
+
+        // Self-heal: if the stored history has a hole (e.g. an older sync stopped
+        // short), fetch it in full once instead of staying incomplete forever.
+        if merged.lazy.filter(\.confirmed).count < info.confirmedTxCount {
+            let full = try await WalletAPIService.fetchFullHistory(
+                address: address, expectedConfirmedCount: info.confirmedTxCount)
+            merged = applyHistories([address: full], to: merged)
+        }
+
+        var updated = WalletManager.shared.wallets.first(where: { $0.id == wallet.id }) ?? wallet
+        updated.addresses = [WalletAddress(
+            id: wallet.addresses.first?.id ?? UUID(),
+            address: address, derivationIndex: nil, chain: nil,
+            balanceSats: info.balanceSats, txCount: info.txCount,
+            mempoolTxCount: info.mempoolTxCount
+        )]
+        updated.transactions = merged
+        return updated
+    }
+
     /// Full sync for a single-address wallet.
     ///
     /// Works for both initial scans (`wallet.transactions` empty) and resuming
     /// interrupted syncs. Saves the balance immediately after the first API
     /// call, then saves progressively after every transaction page — so a
     /// restart can continue exactly where it left off.
-    private func syncSingleAddress(_ wallet: Wallet) async throws -> Wallet {
+    private func initialSyncSingleAddress(_ wallet: Wallet) async throws -> Wallet {
         let address = wallet.publicKey
 
         // --- Step 1: fetch & immediately persist the current balance ---
@@ -601,7 +722,7 @@ class WalletViewModel: ObservableObject {
 
         // --- Step 3: first page (newest txs + mempool) ---
         let firstPage = try await WalletAPIService.fetchTransactions(address: address)
-        mergeTxs(&mergedTxs, from: firstPage)
+        mergedTxs = applyHistories([address: firstPage], to: mergedTxs)
 
         partial = WalletManager.shared.wallets.first(where: { $0.id == wallet.id }) ?? wallet
         partial.addresses = [addrEntry]
@@ -623,6 +744,7 @@ class WalletViewModel: ObservableObject {
         while let c = cursor {
             let page = try await WalletAPIService.fetchTransactions(address: address, startAfterTxID: c)
             if page.isEmpty { break }
+            // Plain merge, no stale-pending pruning: a chain page holds no mempool txs.
             mergeTxs(&mergedTxs, from: page)
 
             // Persist after every page — this is the resume checkpoint.
@@ -645,11 +767,6 @@ class WalletViewModel: ObservableObject {
     }
 
     // MARK: - Helpers
-
-    private func deduped(_ txs: [WalletTransaction]) -> [WalletTransaction] {
-        var seen = Set<String>()
-        return txs.filter { seen.insert($0.txid).inserted }
-    }
 
     private func updateTotals() {
         // Read directly from WalletManager — self.wallets updates via Combine
